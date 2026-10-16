@@ -1,0 +1,79 @@
+# Windows-container deployment — same single-container topology as
+# docker-compose.yml (app in a container, MSSQL on the host), but built from
+# Dockerfile.windows for a Docker Engine running Windows containers on
+# Windows Server 2022. A standalone file, not an override of the Linux one:
+# compose merges volume lists instead of replacing them, so an override
+# would leave the Linux /app/data mount in place and fail on Windows.
+#
+#   docker compose -f docker-compose.windows.yml up -d --build
+#
+# DB_HOST must be the Windows host's LAN IP (not "localhost", which is the
+# container itself, and not host.docker.internal, which only Docker Desktop
+# provides). SQL Server must listen on TCP with a static port.
+name: slts
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.windows
+    image: ${DOCKER_REGISTRY:-slts}/slts:windows-latest
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-5000}:5000"
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: 5000
+      APP_NAME: ${APP_NAME:-SLTS}
+      BACKEND_URL: ${BACKEND_URL}
+
+      # DB_DRIVER pinned so an empty DB_HOST fails loudly instead of silently
+      # falling back to a SQLite file inside the container volume.
+      DB_DRIVER: mssql
+      # DB_HOST: the Windows host's LAN IP. DB_PORT: the instance's STATIC
+      # TCP port (SQL Server Configuration Manager > TCP/IP > IPAll). Named
+      # instances are not resolved via SQL Browser — the port must be fixed.
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-warranty}
+      SQL_ENCRYPT: ${SQL_ENCRYPT:-false}
+      TRUST_CERTIFICATE: ${TRUST_CERTIFICATE:-true}
+
+      # Set SESSION_SECRET in .env for production. Left empty, the app generates
+      # one into the data volume — fine, but logins are invalidated if that
+      # volume is ever recreated.
+      SESSION_SECRET: ${SESSION_SECRET}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
+      SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
+      SUPER_ADMIN_ALLOW_MULTIPLE: ${SUPER_ADMIN_ALLOW_MULTIPLE:-false}
+
+      # Windows SSPI SSO is not available inside the container (see Dockerfile.windows).
+      SSO_ENABLED: "false"
+
+      ENABLE_SAML: ${ENABLE_SAML:-false}
+      SAML_ENTRY_POINT: ${SAML_ENTRY_POINT}
+      SAML_ISSUER: ${SAML_ISSUER}
+      SAML_CALLBACK_URL: ${SAML_CALLBACK_URL}
+      SAML_CERT: ${SAML_CERT}
+
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_SECURE: ${SMTP_SECURE}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+    volumes:
+      # Session-secret file and the dev-mode email outbox. All warranty and
+      # user data lives in SQL Server, so this is the only persistent state.
+      - 'slts-data:C:\app\data'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  slts-data:

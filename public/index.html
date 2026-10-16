@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SLTS</title>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1a2233; --muted: #6b7486;
+    --accent: #1d4ed8; --border: #e2e5ea; --row-hover: #eef2fb;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+  .header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 22px; margin: 0; }
+  .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sub { color: var(--muted); font-size: 14px; margin: 6px 0 20px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  select, input[type=text] {
+    padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; background: var(--card); color: var(--text); min-width: 220px;
+  }
+  input[type=text] { flex: 1; min-width: 260px; }
+  input[type=text].exact { border-color: var(--accent); background: #eef2fb; }
+  select.narrow { min-width: 130px; }
+  .search-box { position: relative; flex: 1; min-width: 260px; display: flex; }
+  .search-box input { flex: 1; }
+  .exact-tag {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; font-weight: 700; color: var(--accent); background: #dce4fb;
+    padding: 2px 7px; border-radius: 999px; pointer-events: none;
+  }
+  button.search {
+    padding: 9px 16px; border: 1px solid var(--border); background: var(--card);
+    color: var(--text); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    white-space: nowrap;
+  }
+  button.search:hover { background: var(--row-hover); }
+  button.clear {
+    padding: 9px 16px; border: 1px solid var(--border); background: var(--card);
+    color: var(--muted); border-radius: 8px; font-size: 14px; cursor: pointer;
+    white-space: nowrap;
+  }
+  button.clear:hover:not(:disabled) { background: var(--row-hover); color: var(--text); }
+  button.clear:disabled { opacity: .4; cursor: default; }
+  button.export {
+    padding: 9px 16px; border: 1px solid var(--accent); background: var(--accent);
+    color: #fff; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    white-space: nowrap;
+  }
+  button.export:disabled { opacity: .5; cursor: default; }
+  button.export:hover:not(:disabled) { background: #1a3fc4; }
+  button.import {
+    padding: 9px 16px; border: 1px solid #16803c; background: #16803c;
+    color: #fff; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    white-space: nowrap;
+  }
+  button.import:disabled { opacity: .5; cursor: default; }
+  button.import:hover:not(:disabled) { background: #126631; }
+  a.manage-users {
+    padding: 9px 14px; border: 1px solid var(--border); background: #fff; color: var(--text);
+    border-radius: 8px; font-size: 13.5px; font-weight: 600; text-decoration: none; white-space: nowrap;
+  }
+  a.manage-users:hover { background: var(--row-hover); }
+  .user-chip {
+    display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px;
+    border: 1px solid var(--border); border-radius: 999px; background: #fff;
+  }
+  .user-name { font-size: 13px; font-weight: 600; }
+  .user-role {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--muted); background: var(--bg); padding: 2px 8px; border-radius: 999px;
+  }
+  button.logout {
+    padding: 5px 12px; border: 1px solid var(--border); background: #fff; color: var(--muted);
+    border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  button.logout:hover { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+  a.link-windows { color: var(--accent); font-weight: 600; }
+  .link-banner {
+    position: relative; margin-bottom: 16px; padding: 10px 36px 10px 14px; border-radius: 10px;
+    font-size: 13.5px; font-weight: 600;
+  }
+  .link-banner.ok { background: #f0fdf4; color: #16803c; border: 1px solid #bbf7d0; }
+  .link-banner.err { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .link-banner .banner-close {
+    position: absolute; top: 6px; right: 8px; border: none; background: none; cursor: pointer;
+    font-size: 15px; color: inherit; opacity: .7; padding: 2px 6px;
+  }
+  .link-banner .banner-close:hover { opacity: 1; }
+
+  .upload-banner {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 16px; position: relative;
+  }
+  .upload-banner .banner-close {
+    position: absolute; top: 10px; right: 12px; border: none; background: none;
+    color: var(--muted); font-size: 16px; cursor: pointer; line-height: 1; padding: 2px 6px;
+  }
+  .upload-banner .banner-close:hover { color: var(--text); }
+  .upload-summary { font-size: 13px; font-weight: 600; padding-right: 24px; }
+  .upload-banner ul { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
+  .upload-banner li { padding: 3px 0; display: flex; gap: 8px; align-items: baseline; }
+  .tag-ok { color: #16803c; font-weight: 700; min-width: 64px; }
+  .tag-updated { color: #b45309; font-weight: 700; min-width: 64px; }
+  .tag-err { color: #b91c1c; font-weight: 700; min-width: 64px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  th { background: #f0f2f6; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
+  tbody tr:hover { background: var(--row-hover); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .code { font-family: Consolas, monospace; font-size: 12.5px; color: var(--accent); white-space: nowrap; }
+  .muted { color: var(--muted); }
+  .pager { display: flex; align-items: center; gap: 12px; padding: 12px; justify-content: flex-end; }
+  .pager button {
+    padding: 7px 14px; border: 1px solid var(--border); background: var(--card);
+    border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+  .pager button:disabled { opacity: .4; cursor: default; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  .tablewrap { max-height: 65vh; overflow: auto; }
+
+  button.row-edit {
+    padding: 5px 14px; border: 1px solid var(--accent); background: #fff;
+    color: var(--accent); border-radius: 6px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer; white-space: nowrap;
+  }
+  button.row-edit:hover { background: var(--accent); color: #fff; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(17, 24, 39, .5);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 50;
+  }
+  .modal {
+    background: var(--card); border-radius: 12px; width: 100%; max-width: 560px;
+    max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,.25);
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+  }
+  .modal-header h2 { font-size: 17px; margin: 0; }
+  .modal-close {
+    border: none; background: none; font-size: 20px; line-height: 1; color: var(--muted);
+    cursor: pointer; padding: 2px 8px; border-radius: 6px;
+  }
+  .modal-close:hover:not(:disabled) { background: var(--row-hover); color: var(--text); }
+  .modal-body { padding: 18px 20px; }
+  .field-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin-bottom: 18px;
+  }
+  .field.span-2 { grid-column: 1 / -1; }
+  .field label {
+    display: block; font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px;
+  }
+  .field-value {
+    font-size: 14px; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px;
+  }
+  .field-value.code { font-family: Consolas, monospace; color: var(--accent); }
+  .time-field {
+    border-top: 1px dashed var(--border); padding-top: 16px; position: relative;
+  }
+  .time-field > label {
+    display: block; font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 6px;
+  }
+  .time-input {
+    width: 140px; padding: 9px 12px; border: 2px solid var(--accent); border-radius: 8px;
+    font-size: 16px; font-weight: 700; text-align: left; background: #eef2fb;
+  }
+  .modal-error {
+    margin-top: 8px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: 6px; padding: 6px 10px; font-size: 12.5px; display: inline-block;
+  }
+  .modal-actions {
+    display: flex; justify-content: flex-end; gap: 10px;
+    padding: 14px 20px; border-top: 1px solid var(--border);
+  }
+  .btn-primary, .btn-secondary {
+    padding: 9px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .btn-primary { border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #1a3fc4; }
+  .btn-secondary { border: 1px solid var(--border); background: #fff; color: var(--text); }
+  .btn-secondary:hover:not(:disabled) { background: var(--row-hover); }
+  .btn-primary:disabled, .btn-secondary:disabled { opacity: .5; cursor: default; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+function useDebounced(value, ms) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+const LINK_MSG = {
+  ok: { type: 'ok', text: 'Your Windows account is now linked — next time you can skip the password and sign in automatically.' },
+  taken: { type: 'err', text: 'That Windows account is already linked to a different user.' },
+  failed: { type: 'err', text: 'Could not detect your Windows identity. Try again from a domain-joined PC.' },
+  unavailable: { type: 'err', text: 'Windows sign-in is not available on this server.' },
+  domain: { type: 'err', text: 'Your Windows domain isn’t allowed to link here.' },
+};
+
+function App() {
+  const [me, setMe] = useState(null); // { id, email, name, role } or null while loading
+  const [linkMsg, setLinkMsg] = useState(() => LINK_MSG[new URLSearchParams(location.search).get('link')] || null);
+  const [maxLaborHours, setMaxLaborHours] = useState(999); // overwritten from /auth/public-config on load
+  const [stats, setStats] = useState(null);
+  const [vehicles, setVehicles] = useState([]);
+  const [vehKey, setVehKey] = useState('');
+  const [modYear, setModYear] = useState('');
+  const [gsa, setGsa] = useState('');
+  const [search, setSearch] = useState('');
+  const [exactMode, setExactMode] = useState(false); // true right after clicking Search / pressing Enter
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState({ rows: [], total: 0, limit: 50 });
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResults, setUploadResults] = useState(null); // { added, updated, failed, results }
+  const [refreshTick, setRefreshTick] = useState(0); // bumped after a successful upload to force a re-fetch
+  const fileInputRef = useRef(null);
+  const liveQ = useDebounced(search, 350);
+  const q = exactMode ? search.trim() : liveQ; // exact mode bypasses the debounce and uses the typed term as-is
+
+  function refreshAll() {
+    fetch('/api/stats').then(r => r.json()).then(setStats);
+    fetch('/api/vehicles').then(r => r.json()).then(setVehicles);
+    setRefreshTick(t => t + 1);
+  }
+
+  const [ssoAvailable, setSsoAvailable] = useState(false);
+
+  useEffect(refreshAll, []);
+  useEffect(() => {
+    fetch('/auth/me').then(r => r.json()).then(d => { setMe(d.user); setSsoAvailable(d.ssoAvailable); });
+    fetch('/auth/public-config').then(r => r.json()).then(d => setMaxLaborHours(d.maxLaborHours));
+    if (location.search.includes('link=')) {
+      history.replaceState(null, '', location.pathname); // don't keep re-showing the banner on refresh
+    }
+  }, []);
+
+  async function logout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    location.href = '/login.html';
+  }
+
+  const canEdit = me && (me.role === 'ADMIN' || me.role === 'SUPER_ADMIN');
+
+  useEffect(() => { setPage(1); }, [vehKey, modYear, gsa, q, exactMode]);
+
+  // If the selected year/country no longer matches the selected vehicle, clear the vehicle
+  useEffect(() => {
+    if (!vehKey) return;
+    const v = vehicles.find(v => v.vehKey === vehKey);
+    if (v && ((modYear && v.modYear !== modYear) || (gsa && v.gsa !== gsa))) setVehKey('');
+  }, [modYear, gsa]); // eslint-disable-line
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ page, limit: 50 });
+    if (vehKey) params.set('vehKey', vehKey);
+    if (modYear) params.set('modYear', modYear);
+    if (gsa) params.set('gsa', gsa);
+    if (q) params.set('q', q);
+    if (exactMode) params.set('exact', 'true');
+    fetch('/api/laborops?' + params)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); });
+  }, [vehKey, modYear, gsa, q, exactMode, page, refreshTick]);
+
+  const pages = Math.max(1, Math.ceil(data.total / data.limit));
+  const visibleVehicles = vehicles.filter(v =>
+    (!modYear || v.modYear === modYear) && (!gsa || v.gsa === gsa)
+  );
+  const countryName = { CHN: 'China', USA: 'United States' };
+
+  function runExactSearch() {
+    setExactMode(true);
+    setPage(1);
+  }
+
+  function onSearchChange(e) {
+    setSearch(e.target.value);
+    setExactMode(false); // typing again drops back to live partial-match search
+  }
+
+  function onSearchKeyDown(e) {
+    if (e.key === 'Enter') runExactSearch();
+  }
+
+  function clearFilters() {
+    setModYear('');
+    setGsa('');
+    setVehKey('');
+    setSearch('');
+    setExactMode(false);
+  }
+
+  const hasFilters = modYear || gsa || vehKey || search.trim();
+
+  function exportCsv() {
+    setExporting(true);
+    const params = new URLSearchParams();
+    if (vehKey) params.set('vehKey', vehKey);
+    if (modYear) params.set('modYear', modYear);
+    if (gsa) params.set('gsa', gsa);
+    if (q) params.set('q', q);
+    if (exactMode) params.set('exact', 'true');
+    const url = '/api/laborops/export' + (params.toString() ? '?' + params : '');
+    // Triggering navigation to a Content-Disposition: attachment endpoint
+    // downloads the file without leaving the page.
+    const a = document.createElement('a');
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => setExporting(false), 600);
+  }
+
+  // Edit popup: shows the full row as read-only context, with only totTime
+  // editable — the server-side route only ever writes that one field too.
+  const [editRow, setEditRow] = useState(null); // the row object currently open in the popup, or null
+  const [editValue, setEditValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  function openEdit(row) {
+    setEditRow(row);
+    setEditValue(row.totTime != null ? String(row.totTime) : '');
+    setEditError('');
+  }
+
+  function closeEdit() {
+    if (saving) return;
+    setEditRow(null);
+    setEditError('');
+  }
+
+  useEffect(() => {
+    if (!editRow) return;
+    const onKey = (e) => { if (e.key === 'Escape') closeEdit(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [editRow, saving]); // eslint-disable-line
+
+  async function saveEdit() {
+    if (!editRow) return;
+    const n = Number(editValue);
+    if (!Number.isFinite(n) || n < 0 || n > maxLaborHours) {
+      setEditError(`Enter a number between 0 and ${maxLaborHours}`);
+      return;
+    }
+    setSaving(true);
+    setEditError('');
+    try {
+      const res = await fetch('/api/laborops/' + editRow.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ totTime: n }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Save failed');
+      const id = editRow.id;
+      setData(prev => ({
+        ...prev,
+        rows: prev.rows.map(r => (r.id === id ? { ...r, totTime: d.row.totTime } : r)),
+      }));
+      setEditRow(null);
+    } catch (err) {
+      setEditError(String(err.message || err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function triggerImport() {
+    if (fileInputRef.current) fileInputRef.current.click();
+  }
+
+  async function onFilesSelected(e) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    setUploadResults(null);
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f);
+
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const d = await res.json();
+      setUploadResults(d);
+      refreshAll(); // pick up the new/updated vehicle everywhere: header stats, dropdowns, table
+    } catch (err) {
+      setUploadResults({ added: 0, updated: 0, failed: files.length, results: [{ fileName: '(request)', ok: false, error: String(err) }] });
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  return (
+    <div className="wrap">
+      <div className="header-row">
+        <h1>SLTS</h1>
+        <div className="header-actions">
+          {canEdit && (
+            <React.Fragment>
+              <input
+                type="file" accept=".xml" multiple ref={fileInputRef}
+                onChange={onFilesSelected} style={{ display: 'none' }}
+              />
+              <button className="import" onClick={triggerImport} disabled={uploading}>
+                {uploading ? 'Importing…' : 'Import XML'}
+              </button>
+            </React.Fragment>
+          )}
+          <button className="export" onClick={exportCsv} disabled={exporting || data.total === 0}>
+            {exporting ? 'Exporting…' : `Export CSV (${data.total.toLocaleString()} rows)`}
+          </button>
+          {canEdit && <a className="manage-users" href="/users.html">Manage Users</a>}
+          {me && (
+            <div className="user-chip">
+              <span className="user-name">{me.name || me.email}</span>
+              <span className="user-role">{me.role === 'SUPER_ADMIN' ? 'Super Admin' : me.role === 'ADMIN' ? 'Admin' : 'Viewer'}</span>
+              <button className="logout" onClick={logout}>Sign out</button>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="sub">
+        {stats
+          ? `${stats.laborTimeRows.toLocaleString()} labor-time entries · ${stats.vehicles} vehicle extracts · years ${stats.years[0]}–${stats.years[stats.years.length - 1]} · markets ${stats.markets.join(', ')}`
+          : 'Loading…'}
+        {me && ssoAvailable && !me.windowsUsername && (
+          <React.Fragment> · <a className="link-windows" href="/auth/link-windows">Link your Windows account for one-click sign-in</a></React.Fragment>
+        )}
+      </div>
+
+      {linkMsg && (
+        <div className={'link-banner ' + linkMsg.type}>
+          {linkMsg.text}
+          <button className="banner-close" onClick={() => setLinkMsg(null)} title="Dismiss">×</button>
+        </div>
+      )}
+
+      {uploadResults && (
+        <div className="upload-banner">
+          <button className="banner-close" onClick={() => setUploadResults(null)} title="Dismiss">×</button>
+          <div className="upload-summary">
+            Import result: {uploadResults.added} added · {uploadResults.updated} updated
+            {uploadResults.failed ? ` · ${uploadResults.failed} failed` : ''}
+          </div>
+          <ul>
+            {uploadResults.results.map((r, i) => (
+              <li key={i}>
+                <span className={r.ok ? (r.mode === 'added' ? 'tag-ok' : 'tag-updated') : 'tag-err'}>
+                  {r.ok ? r.mode.toUpperCase() : 'ERROR'}
+                </span>
+                <span>
+                  {r.fileName}
+                  {r.ok
+                    ? ` — ${r.vehDesc} (${r.modYear}, ${r.gsa}) · ${r.timeEntryCount.toLocaleString()} labor-time rows`
+                    : ` — ${r.error}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="controls">
+        <select className="narrow" value={modYear} onChange={e => setModYear(e.target.value)}>
+          <option value="">All years</option>
+          {stats && stats.years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select className="narrow" value={gsa} onChange={e => setGsa(e.target.value)}>
+          <option value="">All countries</option>
+          {stats && stats.markets.map(m => (
+            <option key={m} value={m}>{countryName[m] || m}</option>
+          ))}
+        </select>
+        <select value={vehKey} onChange={e => setVehKey(e.target.value)}>
+          <option value="">
+            All vehicles{modYear ? ` · ${modYear}` : ''}{gsa ? ` · ${countryName[gsa] || gsa}` : ''}
+          </option>
+          {visibleVehicles.map(v => (
+            <option key={v.vehKey + v.fileName} value={v.vehKey}>
+              {v.modYear} · {v.vehDesc} ({v.gsa})
+            </option>
+          ))}
+        </select>
+        <div className="search-box">
+          <input
+            type="text"
+            className={exactMode ? 'exact' : ''}
+            placeholder="Search description, or enter a code and click Search for an exact match…"
+            value={search}
+            onChange={onSearchChange}
+            onKeyDown={onSearchKeyDown}
+          />
+          {exactMode && <span className="exact-tag">EXACT</span>}
+        </div>
+        <button className="search" onClick={runExactSearch} disabled={!search.trim()}>
+          Search
+        </button>
+        <button className="clear" onClick={clearFilters} disabled={!hasFilters}>
+          Clear
+        </button>
+      </div>
+
+      <div className="card">
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Full Op Code</th>
+                <th>Operation</th>
+                <th>Category</th>
+                <th>Qualifier</th>
+                <th style={{textAlign:'right'}}>Time (hrs)</th>
+                <th>Section</th>
+                <th>Vehicle</th>
+                <th>Year</th>
+                {canEdit && <th style={{textAlign:'right'}}>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="code">{r.fullLaborOpCode}</td>
+                  <td>{r.operationDesc}</td>
+                  <td>{r.categoryCode}</td>
+                  <td className="muted">{r.qualDesc || r.catDesc || '—'}</td>
+                  <td className="num">{r.totTime != null ? r.totTime.toFixed(1) : '—'}</td>
+                  <td className="muted">{r.secNo} {r.secDesc}</td>
+                  <td>{r.vehDesc}</td>
+                  <td>{r.modYear}</td>
+                  {canEdit && (
+                    <td style={{textAlign:'right'}}>
+                      <button className="row-edit" onClick={() => openEdit(r)}>Edit</button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && data.rows.length === 0 && <div className="empty">No matching labor operations.</div>}
+          {loading && <div className="empty">Loading…</div>}
+        </div>
+        <div className="pager">
+          <span className="muted">{data.total.toLocaleString()} rows · page {page} of {pages.toLocaleString()}</span>
+          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>Prev</button>
+          <button disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Next</button>
+        </div>
+      </div>
+
+      {editRow && (
+        <div className="modal-overlay" onClick={closeEdit}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Edit labor time</h2>
+              <button className="modal-close" onClick={closeEdit} disabled={saving} title="Close">×</button>
+            </div>
+
+            <div className="modal-body">
+              <div className="field-grid">
+                <div className="field">
+                  <label>Full Op Code</label>
+                  <div className="field-value code">{editRow.fullLaborOpCode}</div>
+                </div>
+                <div className="field">
+                  <label>Base Op Code</label>
+                  <div className="field-value">{editRow.laborDescCode}</div>
+                </div>
+                <div className="field span-2">
+                  <label>Operation</label>
+                  <div className="field-value">{editRow.operationDesc}</div>
+                </div>
+                <div className="field">
+                  <label>Category</label>
+                  <div className="field-value">{editRow.categoryCode}</div>
+                </div>
+                <div className="field">
+                  <label>Qualifier</label>
+                  <div className="field-value">{editRow.qualDesc || editRow.catDesc || '—'}</div>
+                </div>
+                <div className="field">
+                  <label>Vehicle</label>
+                  <div className="field-value">{editRow.vehDesc}</div>
+                </div>
+                <div className="field">
+                  <label>Year · Country</label>
+                  <div className="field-value">{editRow.modYear} · {countryName[editRow.gsa] || editRow.gsa}</div>
+                </div>
+                <div className="field span-2">
+                  <label>Section</label>
+                  <div className="field-value">{editRow.secNo} {editRow.secDesc}</div>
+                </div>
+                <div className="field">
+                  <label>Status</label>
+                  <div className="field-value">{editRow.status}</div>
+                </div>
+                <div className="field">
+                  <label>Effective Date</label>
+                  <div className="field-value">{editRow.effectiveDate}</div>
+                </div>
+              </div>
+
+              <div className="time-field">
+                <label htmlFor="time-edit-input">Time (hrs) — only field you can change</label>
+                <input
+                  id="time-edit-input"
+                  type="number" step="0.1" min="0" max={maxLaborHours}
+                  className="time-input"
+                  value={editValue}
+                  autoFocus
+                  disabled={saving}
+                  onChange={e => setEditValue(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveEdit(); }}
+                />
+                {editError && <div className="modal-error">{editError}</div>}
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={closeEdit} disabled={saving}>Cancel</button>
+              <button className="btn-primary" onClick={saveEdit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

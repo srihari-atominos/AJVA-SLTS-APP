@@ -1,0 +1,29 @@
+{
+  "name": "slts",
+  "version": "1.0.0",
+  "description": "Converts Ford/Lincoln GSLTS labor-time XML extracts into flat data tables and serves them in a small MERN app",
+  "main": "src/server.js",
+  "scripts": {
+    "convert": "node src/scripts/convert.js",
+    "import": "node src/scripts/import-sqlite.js",
+    "import:mongo": "node src/scripts/import-mongo.js",
+    "import:mssql": "node src/scripts/import-mssql.js",
+    "create-super-admin": "node src/scripts/createSuperAdmin.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@node-saml/node-saml": "^5.1.0",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.8",
+    "express": "^4.21.2",
+    "express-session": "^1.19.0",
+    "fast-xml-parser": "^4.5.3",
+    "mongodb": "^6.12.0",
+    "mssql": "^12.7.9",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.1.1"
+  },
+  "optionalDependencies": {
+    "node-expose-sspi": "^0.1.60"
+  }
+}

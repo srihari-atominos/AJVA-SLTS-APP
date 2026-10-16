@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Manage Users</title>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1a2233; --muted:#6b7486; --accent:#1d4ed8; --border:#e2e5ea; --row-hover:#eef2fb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 24px 16px; }
+  .header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 22px; margin: 0; }
+  a.back { color: var(--accent); text-decoration: none; font-size: 13.5px; font-weight: 600; }
+  .sub { color: var(--muted); font-size: 14px; margin: 6px 0 20px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 18px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  .info-note {
+    background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; margin-bottom: 18px; line-height: 1.5;
+  }
+  .info-note a { color: inherit; font-weight: 700; }
+  select {
+    padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 13.5px;
+  }
+  button.small {
+    padding: 5px 11px; border: 1px solid var(--border); background: #fff; color: var(--text);
+    border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  button.small:hover:not(:disabled) { background: var(--row-hover); }
+  button.small:disabled { opacity: .4; cursor: default; }
+  button.danger { color: #b91c1c; border-color: #fecaca; }
+  button.danger:hover:not(:disabled) { background: #fef2f2; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  th { background: #f0f2f6; font-weight: 600; white-space: nowrap; }
+  .role-badge {
+    display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  }
+  .role-SUPER_ADMIN { background: #1a1a1a; color: #fff; }
+  .role-ADMIN { background: #dce4fb; color: #1d4ed8; }
+  .role-USER { background: #e5e7eb; color: #374151; }
+  .status-badge { font-size: 11.5px; font-weight: 600; }
+  .status-active { color: #16803c; }
+  .status-invited { color: #b45309; }
+  .status-disabled { color: #b91c1c; }
+  .actions-cell { display: flex; gap: 6px; flex-wrap: wrap; }
+  .msg { margin: 12px 0; padding: 9px 12px; border-radius: 8px; font-size: 13px; }
+  .msg.err { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .msg.ok { background: #f0fdf4; color: #16803c; border: 1px solid #bbf7d0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+function App() {
+  const [me, setMe] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null); // {type, text}
+
+  function loadMe() { return fetch('/auth/me').then(r => r.json()).then(d => setMe(d.user)); }
+  function loadUsers() { return fetch('/api/users').then(r => r.json()).then(setUsers); }
+
+  useEffect(() => { loadMe(); loadUsers(); }, []);
+
+  async function setStatus(u, status) {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch(`/api/users/${u.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Failed');
+      await loadUsers();
+    } catch (err) {
+      setMsg({ type: 'err', text: String(err.message || err) });
+    } finally { setBusy(false); }
+  }
+
+  async function setRole(u, role) {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch(`/api/users/${u.id}/role`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Failed');
+      await loadUsers();
+    } catch (err) {
+      setMsg({ type: 'err', text: String(err.message || err) });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="wrap">
+      <div className="header-row">
+        <h1>Manage Users</h1>
+        <a className="back" href="/">&larr; Back to data</a>
+      </div>
+      <div className="sub">
+        {me ? `Signed in as ${me.name || me.email} (${me.role === 'SUPER_ADMIN' ? 'Super Admin' : me.role === 'ADMIN' ? 'Admin' : 'Viewer'})` : ''}
+      </div>
+
+      {msg && <div className={'msg ' + (msg.type === 'ok' ? 'ok' : 'err')}>{msg.text}</div>}
+
+      <div className="info-note">
+        There's no invite step — anyone can create their own account at <a href="/signup.html">/signup.html</a>,
+        and it starts with Viewer access automatically. Use the table below to promote someone to Admin
+        (Super Admin only) or to disable an account.
+      </div>
+
+      <div className="card">
+        <h2>All users</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Windows account</th>
+              <th>Last sign-in</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(u => {
+              const isSuper = u.role === 'SUPER_ADMIN';
+              const isSelf = me && u.id === me.id;
+              // What the current viewer is allowed to act on:
+              const canManage = me && (me.role === 'SUPER_ADMIN' ? !isSuper : u.role === 'USER') && !isSelf;
+              return (
+                <tr key={u.id}>
+                  <td>{u.email}</td>
+                  <td>{u.name || '—'}</td>
+                  <td>
+                    <span className={'role-badge role-' + u.role}>
+                      {u.role === 'SUPER_ADMIN' ? 'Super Admin' : u.role === 'ADMIN' ? 'Admin' : 'Viewer'}
+                    </span>
+                    {me && me.role === 'SUPER_ADMIN' && !isSuper && !isSelf && (
+                      <select
+                        style={{ marginLeft: 8, minWidth: 100, padding: '3px 6px', fontSize: 12 }}
+                        value={u.role}
+                        disabled={busy}
+                        onChange={e => setRole(u, e.target.value)}
+                      >
+                        <option value="USER">Viewer</option>
+                        <option value="ADMIN">Admin</option>
+                      </select>
+                    )}
+                  </td>
+                  <td><span className={'status-badge status-' + u.status}>{u.status}</span></td>
+                  <td>{u.windowsUsername || '—'}</td>
+                  <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : '—'}</td>
+                  <td className="actions-cell">
+                    {u.status === 'active' && canManage && (
+                      <button className="small danger" disabled={busy} onClick={() => setStatus(u, 'disabled')}>Disable</button>
+                    )}
+                    {u.status === 'disabled' && canManage && (
+                      <button className="small" disabled={busy} onClick={() => setStatus(u, 'active')}>Re-enable</button>
+                    )}
+                    {!canManage && <span style={{color: 'var(--muted)', fontSize: 12}}>{isSelf ? '(you)' : '—'}</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

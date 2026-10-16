@@ -1,0 +1,57 @@
+# Single-container deployment — the app (API + static frontend, one Node
+# process) in its own container, talking to MSSQL on the host/network
+# rather than a second container, since this is meant to run on a Windows
+# Server that's typically already running SQL Server directly. If your
+# MSSQL instance is itself containerized, add it as a service here and
+# point DB_HOST at its service name instead of a host IP.
+name: slts
+
+services:
+  app:
+    build: .
+    image: ${DOCKER_REGISTRY:-slts}/slts:latest
+    restart: unless-stopped
+    ports:
+      - "${SERVER_PORT:-5000}:5000"
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: 5000
+      APP_NAME: ${APP_NAME:-SLTS}
+      BACKEND_URL: ${BACKEND_URL}
+
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-1433}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-warranty}
+      SQL_ENCRYPT: ${SQL_ENCRYPT:-false}
+      TRUST_CERTIFICATE: ${TRUST_CERTIFICATE:-true}
+
+      SESSION_SECRET: ${SESSION_SECRET}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}
+      SUPER_ADMIN_NAME: ${SUPER_ADMIN_NAME}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
+      SUPER_ADMIN_ALLOW_MULTIPLE: ${SUPER_ADMIN_ALLOW_MULTIPLE:-false}
+
+      SSO_ENABLED: ${SSO_ENABLED:-true}
+      SSO_ALLOWED_DOMAINS: ${SSO_ALLOWED_DOMAINS}
+
+      ENABLE_SAML: ${ENABLE_SAML:-false}
+      SAML_ENTRY_POINT: ${SAML_ENTRY_POINT}
+      SAML_ISSUER: ${SAML_ISSUER}
+      SAML_CALLBACK_URL: ${SAML_CALLBACK_URL}
+      SAML_CERT: ${SAML_CERT}
+
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_SECURE: ${SMTP_SECURE}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+    volumes:
+      # Only used if DB_HOST is unset (SQLite fallback) and for the
+      # session-secret file — safe to keep mounted either way.
+      - slts-data:/app/data
+
+volumes:
+  slts-data:

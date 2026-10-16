@@ -1,0 +1,6 @@
+# Normalise line endings: LF in the repo, so Dockerfiles and configs
+# behave the same on Linux and Windows checkouts.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
