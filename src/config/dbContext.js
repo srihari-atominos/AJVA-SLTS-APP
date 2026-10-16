@@ -22,6 +22,14 @@
  * `insert()` requires the SQL to be a plain INSERT with no id-returning
  * clause of its own — this module appends the right one per driver
  * (`SELECT last_insert_rowid()` / `SELECT SCOPE_IDENTITY() AS id`).
+ *
+ *   bulkInsert(table, columns, rows) -> { inserted }
+ *     Fast path for loading many rows at once (the first-run seed). columns
+ *     is [{ name, type: 'nvarchar'|'int'|'float', length?, nullable? }],
+ *     rows is an array of value arrays in that column order. MSSQL uses the
+ *     driver's native bulk load (one TDS BULK INSERT instead of thousands of
+ *     parameterised statements — ~100x faster over a network); SQLite uses
+ *     multi-row INSERTs. Available on the pool and inside a transaction.
  */
 const { DatabaseSync } = require('node:sqlite');
 const sql = require('mssql');
@@ -42,10 +50,24 @@ function makeSqliteContext(db) {
     const r = db.prepare(sqlText).run(...params);
     return { id: Number(r.lastInsertRowid) };
   }
+  // Multi-row INSERT ... VALUES (...),(...) in chunks. 500 rows/statement keeps
+  // well under SQLITE_MAX_VARIABLE_NUMBER for any realistic column count.
+  async function bulkInsert(table, columns, rows) {
+    const names = columns.map((c) => `"${c.name}"`).join(', ');
+    const rowSql = `(${columns.map(() => '?').join(',')})`;
+    const CHUNK = 500;
+    let inserted = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const slice = rows.slice(i, i + CHUNK);
+      db.prepare(`INSERT INTO ${table} (${names}) VALUES ${slice.map(() => rowSql).join(',')}`).run(...slice.flat());
+      inserted += slice.length;
+    }
+    return { inserted };
+  }
   async function transaction(fn) {
     db.exec('BEGIN');
     try {
-      const result = await fn({ driver: 'sqlite', all, get, run, insert });
+      const result = await fn({ driver: 'sqlite', all, get, run, insert, bulkInsert });
       db.exec('COMMIT');
       return result;
     } catch (e) {
@@ -54,7 +76,7 @@ function makeSqliteContext(db) {
     }
   }
 
-  return { driver: 'sqlite', all, get, run, insert, transaction, raw: db };
+  return { driver: 'sqlite', all, get, run, insert, bulkInsert, transaction, raw: db };
 }
 
 // ---- MSSQL implementation ----
@@ -101,7 +123,20 @@ function makeMssqlContext(pool) {
       const row = (result.recordset && result.recordset[0]) || {};
       return { id: Number(row.id) };
     }
-    return { all, get, run, insert };
+    async function bulkInsert(table, columns, rows) {
+      const t = new sql.Table(table);
+      t.create = false; // table already exists (dataSchema.js) — never let the driver create it
+      for (const c of columns) {
+        const type = c.type === 'int' ? sql.Int
+          : c.type === 'float' ? sql.Float
+          : sql.NVarChar(c.length || sql.MAX);
+        t.columns.add(c.name, type, { nullable: c.nullable !== false });
+      }
+      for (const r of rows) t.rows.add(...r.map((v) => (v === undefined ? null : v)));
+      const result = await requestFactory().bulk(t);
+      return { inserted: result.rowsAffected };
+    }
+    return { all, get, run, insert, bulkInsert };
   }
 
   const poolOps = makeOps(() => pool.request());

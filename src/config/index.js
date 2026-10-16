@@ -42,6 +42,13 @@ module.exports = {
     // switches to mssql without needing a separate flag, but DB_DRIVER
     // can force either explicitly.
     driver: process.env.DB_DRIVER || (process.env.DB_HOST ? 'mssql' : 'sqlite'),
+    // At every server start: create any missing warranty data tables
+    // (never drops/alters existing ones), then — only if those tables are
+    // completely empty — load them from the seed files. Both default on so
+    // a container pointed at a brand-new database comes up with data.
+    // See features/vehicles/dataSchema.js and seed.js.
+    autoSchema: bool(process.env.DB_AUTO_SCHEMA, true),
+    autoSeed: bool(process.env.DB_AUTO_SEED, true),
     mssql: {
       host: process.env.DB_HOST || 'localhost',
       port: num(process.env.DB_PORT, 1433),
@@ -56,6 +63,12 @@ module.exports = {
   // Where the SQLite file and generated session-secret file live.
   // Override DATA_DIR to point the whole app at a different data folder.
   dataDir: process.env.DATA_DIR || path.join(ROOT_DIR, 'data'),
+
+  // Where the first-run seed files live (vehicles/laborops .ndjson or
+  // .ndjson.gz). ./seed holds the gzipped copies committed to the repo and
+  // baked into the Docker image; DATA_DIR is checked as a fallback so a
+  // local `npm run convert` output also seeds a fresh database.
+  seedDir: process.env.SEED_DIR || path.join(ROOT_DIR, 'seed'),
 
   // Static frontend files (public/). Not env-overridable — there's only
   // ever one correct location relative to this app, unlike data storage.

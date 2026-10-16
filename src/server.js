@@ -1,13 +1,16 @@
 /**
  * server.js
  * Entry point: creates the shared DB connection (SQLite or MSSQL, per
- * config.db.driver), seeds the Super Admin from .env if configured,
- * assembles the app, and starts listening.
+ * config.db.driver), creates any missing warranty data tables and seeds
+ * them if empty, seeds the Super Admin from .env if configured, assembles
+ * the app, and starts listening.
  */
 const config = require('./config');
 const { createDb } = require('./config/db');
 const { createApp } = require('./app');
 const { seedSuperAdminFromEnv } = require('./features/users/superAdmin');
+const { ensureWarrantySchema } = require('./features/vehicles/dataSchema');
+const { seedWarrantyDataIfEmpty } = require('./features/vehicles/seed');
 
 // Defense in depth: every route handler is already wrapped in asyncHandler
 // (see its header comment), which is the real fix for a rejected request
@@ -20,6 +23,16 @@ process.on('unhandledRejection', (err) => {
 
 (async () => {
   const db = await createDb();
+
+  // Warranty data tables: create if missing, then seed only if empty. Both
+  // steps are no-ops against a database that already has its tables/rows,
+  // so this is safe on every restart. Runs BEFORE listen so the first
+  // request never sees a half-loaded table.
+  if (config.db.autoSchema) await ensureWarrantySchema(db);
+  else console.log('[schema] DB_AUTO_SCHEMA=false — not creating warranty data tables automatically.');
+  if (config.db.autoSeed) await seedWarrantyDataIfEmpty(db);
+  else console.log('[seed] DB_AUTO_SEED=false — not seeding warranty data automatically.');
+
   await seedSuperAdminFromEnv(db); // no-op unless SUPER_ADMIN_EMAIL/PASSWORD are set in .env
   const app = createApp(db);
   app.listen(config.server.port, () => {

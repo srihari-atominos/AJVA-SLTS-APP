@@ -53,7 +53,12 @@ async function upsertSuperAdmin(db, { email, name, password }) {
  */
 async function seedSuperAdminFromEnv(db) {
   const { email, name, password, allowMultiple } = config.superAdmin;
-  if (!email || !password) return null; // nothing configured in .env — fine, CLI script still works
+  if (!email || !password) {
+    // Nothing configured — fine, the CLI script still works. Say so, though:
+    // an empty SUPER_ADMIN_* in a compose/.env file is easy to miss otherwise.
+    console.log('[super-admin] SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD not set — no Super Admin seeded from env.');
+    return null;
+  }
 
   if (!allowMultiple) {
     const existing = await db.get(`SELECT * FROM users WHERE role = 'SUPER_ADMIN'`, []);

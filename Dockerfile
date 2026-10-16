@@ -11,6 +11,9 @@ RUN npm ci --omit=dev
 
 COPY src ./src
 COPY public ./public
+# Gzipped first-run seed data: loaded automatically at startup if the
+# warranty tables are empty (src/features/vehicles/seed.js).
+COPY seed ./seed
 
 # data/ is a volume (see docker-compose.yml) — don't bake it into the image.
 RUN mkdir -p data

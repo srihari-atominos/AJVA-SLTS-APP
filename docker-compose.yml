@@ -26,6 +26,9 @@ services:
       DB_NAME: ${DB_NAME:-warranty}
       SQL_ENCRYPT: ${SQL_ENCRYPT:-false}
       TRUST_CERTIFICATE: ${TRUST_CERTIFICATE:-true}
+      # Create missing warranty tables / seed them if empty at startup (both default true).
+      DB_AUTO_SCHEMA: ${DB_AUTO_SCHEMA:-true}
+      DB_AUTO_SEED: ${DB_AUTO_SEED:-true}
 
       SESSION_SECRET: ${SESSION_SECRET}
       SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL}

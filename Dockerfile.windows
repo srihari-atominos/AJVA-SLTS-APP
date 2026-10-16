@@ -53,6 +53,9 @@ WORKDIR C:\app
 COPY --from=build C:/app/node_modules ./node_modules
 COPY src ./src
 COPY public ./public
+# Gzipped first-run seed data: loaded automatically at startup if the
+# warranty tables are empty (src/features/vehicles/seed.js).
+COPY seed ./seed
 
 # Stage 1's PowerShell SHELL doesn't carry over (and Nano Server has no PowerShell anyway).
 SHELL ["cmd", "/S", "/C"]

@@ -203,17 +203,22 @@ Every repository goes through a uniform query interface (`src/config/dbContext.j
 
 **Switching on:** set `DB_HOST` (plus `DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`) in `.env` — the driver auto-detects to `mssql` the moment `DB_HOST` is present; no separate flag needed (though `DB_DRIVER=mssql` works too, if you want it explicit). The target database (`DB_NAME`, default `warranty`) must already exist on the server — this app creates *tables*, never the database itself.
 
-**One-time setup, in order:**
+**Setup — point `.env` at the instance and start:**
 ```bash
-# 1. Point .env at your MSSQL instance (DB_HOST etc.)
-# 2. Create the users/sessions schema + load the warranty data:
-npm run import:mssql
-# 3. Seed the Super Admin (CLI or SUPER_ADMIN_* in .env, same as SQLite mode):
-npm run create-super-admin -- --email=you@company.com --password=yourpassword
-# 4. Start the app — it connects to MSSQL automatically because DB_HOST is set:
+# 1. Point .env at your MSSQL instance (DB_HOST etc.) and set SUPER_ADMIN_EMAIL/NAME/PASSWORD
+# 2. Start the app — it connects to MSSQL automatically because DB_HOST is set:
 npm start
 ```
-`npm run import:mssql` rebuilds `vehicles`/`engines`/`transmissions`/`features`/`laborops` from the same `data/*.ndjson` files `npm run convert` produces — same source data, same resulting rows as the SQLite path, just loaded via `mssql` with batched transactions instead of `node:sqlite`. The `users`/`sessions` tables are created separately, automatically, the first time the app (or any script that calls `createDb()`) connects — same as SQLite mode.
+Everything else happens automatically at startup, in this order (`src/server.js`):
+
+1. **`users`/`sessions` tables** are created if missing (`src/features/users/schema.mssql.js`).
+2. **Warranty data tables** (`vehicles`/`engines`/`transmissions`/`features`/`laborops` + indexes) are created if missing (`src/features/vehicles/dataSchema.js`). Existing tables are never dropped or altered.
+3. **First-run seed:** if — and only if — those tables are completely empty, they're loaded from the gzipped NDJSON in `seed/` (committed with the app, baked into the Docker image; `data/*.ndjson` from `npm run convert` is the fallback). Uses the driver's native bulk load, so all 111,531 rows take ~10 s. A database with any rows at all is left exactly as it is (`src/features/vehicles/seed.js`).
+4. **Super Admin** is seeded from `SUPER_ADMIN_*` in `.env` (see **First-time setup** above).
+
+`DB_AUTO_SCHEMA=false` / `DB_AUTO_SEED=false` opt out of steps 2 and 3. The target *database* must still exist beforehand, and the login needs CREATE TABLE/INDEX on it for the first start.
+
+`npm run import:mssql` remains as the deliberate **rebuild-from-scratch** path: it DROPS and recreates the five warranty tables from `data/*.ndjson` (same source data, same resulting rows). Use it when the XML extracts change and you want a clean reload; never point it at a database you don't intend to wipe.
 
 **Verified against a real instance**, not just written and assumed correct: this was built and tested end-to-end against a live `mssql/server:2022` container — all 126 vehicles and 111,531 labor-time rows imported, then signup/login/session persistence/role changes/the upload transaction/pagination all exercised through the running app. One real bug surfaced and was fixed this way: SQL Server's `UNIQUE` constraint, unlike SQLite's, only allows a single `NULL` per column — `windowsUsername` (`NULL` until a user links their Windows account) needed a **filtered** unique index (`WHERE windowsUsername IS NOT NULL`) instead, or the second-ever user signup would fail outright. See the comment in `src/features/users/schema.mssql.js`.
 
@@ -234,7 +239,7 @@ docker compose up -d --build
 docker compose -f docker-compose.windows.yml up -d --build
 ```
 
-Set `DB_HOST` to the host's LAN IP (not `localhost` — that is the container itself). The Windows image omits the native SSPI module, so Windows SSO is off there too; password and SAML login work as normal. Not yet built on a real Windows-container host — `docker compose -f docker-compose.windows.yml build` on the server is the first verification step.
+Set `DB_HOST` to the host's LAN IP (not `localhost` — that is the container itself). The Windows image omits the native SSPI module, so Windows SSO is off there too; password and SAML login work as normal. The container needs no import step: on first start it creates the warranty tables in the (empty, pre-existing) database and seeds them from the `seed/` files baked into the image — see **Production: MSSQL Server** above. Not yet built on a real Windows-container host — `docker compose -f docker-compose.windows.yml build` on the server is the first verification step.
 
 **Windows SSO does not work inside this container.** The image (`node:22-slim`) is Linux-based, and SSPI is a native Windows API — `node-expose-sspi` is listed as an **optional** dependency precisely because of this (a plain `dependency` with an OS restriction makes `npm ci` fail the whole install on Linux; `optionalDependencies` lets npm skip it there instead). The app degrades gracefully (`ssoAvailable: false`, password/SAML login still work) rather than crashing. If SSO matters for the Dockerized deployment, **use SAML** (works from any OS — see **Signing in** above) rather than Windows SSPI. Windows SSPI SSO is really for running this process directly on Windows (as a Windows Service, not in a container) with domain-joined client PCs.
 
