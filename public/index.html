@@ -288,7 +288,7 @@ function App() {
   const visibleVehicles = vehicles.filter(v =>
     (!modYear || v.modYear === modYear) && (!gsa || v.gsa === gsa)
   );
-  const countryName = { CHN: 'China', USA: 'United States' };
+  const countryName = { CHN: 'China', USA: 'United States', EU: 'Europe' };
 
   function runExactSearch() {
     setExactMode(true);
@@ -476,7 +476,7 @@ function App() {
                 <span>
                   {r.fileName}
                   {r.ok
-                    ? ` — ${r.vehDesc} (${r.modYear}, ${r.gsa}) · ${r.timeEntryCount.toLocaleString()} labor-time rows`
+                    ? ` — ${r.vehDesc} (${r.modYear || '—'}, ${r.gsa}) · ${r.timeEntryCount.toLocaleString()} labor-time rows`
                     : ` — ${r.error}`}
                 </span>
               </li>
@@ -502,7 +502,7 @@ function App() {
           </option>
           {visibleVehicles.map(v => (
             <option key={v.vehKey + v.fileName} value={v.vehKey}>
-              {v.modYear} · {v.vehDesc} ({v.gsa})
+              {v.modYear || '—'} · {v.vehDesc} ({v.gsa})
             </option>
           ))}
         </select>
@@ -551,7 +551,7 @@ function App() {
                   <td className="num">{r.totTime != null ? r.totTime.toFixed(1) : '—'}</td>
                   <td className="muted">{r.secNo} {r.secDesc}</td>
                   <td>{r.vehDesc}</td>
-                  <td>{r.modYear}</td>
+                  <td>{r.modYear || '—'}</td>
                   {canEdit && (
                     <td style={{textAlign:'right'}}>
                       <button className="row-edit" onClick={() => openEdit(r)}>Edit</button>
@@ -607,7 +607,7 @@ function App() {
                 </div>
                 <div className="field">
                   <label>Year · Country</label>
-                  <div className="field-value">{editRow.modYear} · {countryName[editRow.gsa] || editRow.gsa}</div>
+                  <div className="field-value">{editRow.modYear || '—'} · {countryName[editRow.gsa] || editRow.gsa}</div>
                 </div>
                 <div className="field span-2">
                   <label>Section</label>

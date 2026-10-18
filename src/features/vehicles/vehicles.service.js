@@ -74,13 +74,20 @@ function makeVehiclesService(db, laborOpsService) {
       return { fileName: name, ok: false, error: 'Missing EXTRACTDETAILS/VEHLINEDATA fields needed to identify the vehicle' };
     }
 
+    // Surface derivation fallbacks (e.g. a regional extract with no model
+    // year in its description) in the server log AND the upload response,
+    // so a new extract format is noticed at upload time, not months later.
+    for (const w of parsed.warnings || []) console.warn(`[upload] ${w}`);
+
     try {
       const { mode } = await db.transaction((tx) => upsertVehicle(tx, parsed.vehicle, parsed.laborOps));
       return {
         fileName: name, ok: true, mode,
         vehKey: parsed.vehicle.vehKey, vehDesc: parsed.vehicle.vehDesc,
         modYear: parsed.vehicle.modYear, gsa: parsed.vehicle.gsa,
+        prodStart: parsed.vehicle.prodStart, prodEnd: parsed.vehicle.prodEnd,
         laborOpCount: parsed.vehicle.laborOpCount, timeEntryCount: parsed.vehicle.timeEntryCount,
+        warnings: parsed.warnings || [],
       };
     } catch (e) {
       return { fileName: name, ok: false, error: e.message };

@@ -106,6 +106,28 @@ Query it directly from any SQLite tool, e.g.
 
 Requires Node 22.5+ (built-in SQLite driver). MongoDB is only needed for the optional `import:mongo` path.
 
+## Regional extracts (EU): deriving year and market
+
+The China (`IM`/`CHN`) and US (`NA`/`USA`) extracts are published per market and model year, so their header carries real values. The European extracts (`EUEN_*.xml`) are published once per vehicle line for the whole region and their header literally says `<GSA>ALL</GSA>` / `<MODYR>ALL</MODYR>` — the only place the year and production window appear is the free-text `<VEHDESC>`, e.g. `Fiesta 1989 (03/1989-09/1996)`, `Ka 2016.5 (04/2016-)`, `Windstar (10/1994-07/2000)`, `Mustang 2024`, `Bronco`.
+
+`src/features/vehicles/vehicleMeta.js` (used by every upload and by `npm run convert`) treats `ALL` as "unknown, derive it":
+
+| Field | Rule |
+|---|---|
+| `gsa` (market) | header value if real; else the source region (`EU`) |
+| `modYear` | header value if real; else the first `19xx`/`20xx` (optionally `.25`/`.5`/`.75`) in the description before the window; else the window's start year (warning); else `NULL` (warning) |
+| `prodStart` / `prodEnd` | `YYYY-MM` from the parenthesised `MM/YYYY-MM/YYYY` or `MM/YYYY-` range (`.` separators and missing space tolerated); `NULL` if absent |
+
+The `vehKey` keeps using the **raw** header (`EU-ALL-ALL-03`): it only has to be unique and stable, and changing it would turn a re-upload into a duplicate instead of a replacement. Every fallback is reported as a warning in the upload response (`results[].warnings`) and the server log, so a new extract format is noticed at upload time. `npm test` covers every description shape seen so far — add a case there when Ford invents a new one.
+
+**Rows loaded before this existed** still carry `ALL`. Two equivalent ways to repair them in place (both leave `vehKey` untouched and update `laborops` too, which is what the filters query):
+
+```bash
+npm run backfill:vehicle-meta            # dry run: prints the exact UPDATE statements, changes nothing
+npm run backfill:vehicle-meta -- --apply # applies them in one transaction
+```
+or review and run `sql/backfill-eu-vehicle-meta.sql` (generated from the EUEN folder with the same function) in SSMS. The `prodStart`/`prodEnd` columns are added automatically the first time the new build starts (`ALTER TABLE ... ADD`, only if missing) — the SQL file includes the same guarded `ALTER` in case it runs first.
+
 ## Access control
 
 Three roles, enforced server-side on every route (not just hidden in the UI):

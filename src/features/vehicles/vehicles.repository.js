@@ -13,14 +13,17 @@ function makeVehiclesRepository(db) {
   return {
     listForDropdown: () => db.all(`
       SELECT id, vehKey, fileName, folder, source, gsa, language, modYear, prodType,
-             vehCode, vehDesc, abbr, brandCode, laborOpCount, timeEntryCount
+             prodStart, prodEnd, vehCode, vehDesc, abbr, brandCode, laborOpCount, timeEntryCount
       FROM vehicles ORDER BY modYear, vehDesc
     `, []),
 
     findByVehKey: (vehKey) => db.get('SELECT id FROM vehicles WHERE vehKey = ?', [vehKey]),
     count: async () => (await db.get('SELECT COUNT(*) AS n FROM vehicles', [])).n,
-    distinctYears: async () => (await db.all('SELECT DISTINCT modYear FROM vehicles ORDER BY modYear', [])).map((r) => r.modYear),
-    distinctMarkets: async () => (await db.all('SELECT DISTINCT gsa FROM vehicles', [])).map((r) => r.gsa),
+    // A vehicle whose description carries no model year at all (see
+    // vehicleMeta.js) has modYear NULL — it stays listable but is not a
+    // year-filter option.
+    distinctYears: async () => (await db.all('SELECT DISTINCT modYear FROM vehicles WHERE modYear IS NOT NULL ORDER BY modYear', [])).map((r) => r.modYear),
+    distinctMarkets: async () => (await db.all('SELECT DISTINCT gsa FROM vehicles WHERE gsa IS NOT NULL', [])).map((r) => r.gsa),
 
     async deleteVehicleCascade(vehKey, vehicleId) {
       await db.run('DELETE FROM laborops WHERE vehKey = ?', [vehKey]);
@@ -34,12 +37,12 @@ function makeVehiclesRepository(db) {
       const { id } = await db.insert(
         `INSERT INTO vehicles
           (vehKey, fileName, folder, source, gsa, language, modYear, prodType, extractId, extractDate,
-           vehCode, vehDesc, abbr, brandCode, laborOpCount, timeEntryCount)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           vehCode, vehDesc, abbr, brandCode, laborOpCount, timeEntryCount, prodStart, prodEnd)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
           v.vehKey, v.fileName, v.folder, v.source, v.gsa, v.language, v.modYear, v.prodType,
           String(v.extractId ?? ''), v.extractDate, v.vehCode, v.vehDesc, v.abbr, v.brandCode,
-          v.laborOpCount, v.timeEntryCount,
+          v.laborOpCount, v.timeEntryCount, v.prodStart ?? null, v.prodEnd ?? null,
         ]
       );
       return id;

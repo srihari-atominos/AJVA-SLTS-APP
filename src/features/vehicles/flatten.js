@@ -7,6 +7,7 @@
  * paths produce byte-identical rows for the same XML.
  */
 const { XMLParser } = require('fast-xml-parser');
+const { deriveVehicleMeta } = require('./vehicleMeta');
 
 const ARRAY_TAGS = new Set([
   'LABOROP', 'TIMESTUDY', 'FULLLABOROP', 'SECTION',
@@ -28,8 +29,10 @@ const num = (v) => {
 /**
  * @param {string} xml raw XML text of one PUBEXTRACT file
  * @param {{fileName?: string, folder?: string}} meta
- * @returns {{vehicle: object, laborOps: object[]} | null} null if the file
- *   isn't a recognizable PUBEXTRACT (caller should skip/report it)
+ * @returns {{vehicle: object, laborOps: object[], warnings: string[]} | null}
+ *   null if the file isn't a recognizable PUBEXTRACT (caller should
+ *   skip/report it). warnings lists anything derived with a fallback
+ *   (e.g. a regional extract whose description has no model year).
  */
 function flattenExtract(xml, meta = {}) {
   const root = parser.parse(xml).PUBEXTRACT;
@@ -37,7 +40,18 @@ function flattenExtract(xml, meta = {}) {
 
   const ex = root.EXTRACTDETAILS || {};
   const vl = root.VEHLINEDATA || {};
+
+  // The key deliberately uses the RAW header values (so an EU file is
+  // "EU-ALL-ALL-03"): it only has to be unique and stable, and it must not
+  // change when the derivation below improves, or re-uploading a file
+  // would create a second vehicle instead of replacing the first.
   const vehKey = [ex.SOURCE, ex.GSA, ex.MODYR, vl.GSLTSVEHCODE].join('-');
+
+  // Displayed/filterable market + year, with "ALL" headers resolved from
+  // the description (see vehicleMeta.js for the rules and why).
+  const derived = deriveVehicleMeta({ source: ex.SOURCE, gsa: ex.GSA, modYear: ex.MODYR, vehDesc: vl.VEHDESC });
+  const { gsa, modYear, prodStart, prodEnd } = derived;
+  const warnings = derived.warnings.map((w) => `${meta.fileName || vehKey}: ${w}`);
 
   const engines = arr(root.ENGINES && root.ENGINES.ENGDATA).map((e) => ({
     engCode: e.ENGCODE, desc: e.ENDESC, abbr: e.ABBR, numCyl: e.NUMCYL,
@@ -60,7 +74,7 @@ function flattenExtract(xml, meta = {}) {
       for (const flo of arr(ts.FULLLABOROPS && ts.FULLLABOROPS.FULLLABOROP)) {
         laborOps.push({
           vehKey,
-          source: ex.SOURCE, gsa: ex.GSA, modYear: ex.MODYR,
+          source: ex.SOURCE, gsa, modYear,
           vehDesc: vl.VEHDESC, brandCode: vl.BRANDCODE,
           laborDescCode: op.LABORDESCCODE,
           baseLaborOp: op.BASELABOROP,
@@ -87,8 +101,9 @@ function flattenExtract(xml, meta = {}) {
     vehKey,
     fileName: meta.fileName || null,
     folder: meta.folder || null,
-    source: ex.SOURCE, gsa: ex.GSA, language: ex.LANGUAGE,
-    modYear: ex.MODYR, prodType: ex.PRODTYPE,
+    source: ex.SOURCE, gsa, language: ex.LANGUAGE,
+    modYear, prodType: ex.PRODTYPE,
+    prodStart, prodEnd,
     extractId: ex.EXTRACTID, extractDate: ex.EXTRACTDATE,
     vehCode: vl.GSLTSVEHCODE, vehDesc: vl.VEHDESC,
     abbr: vl.ABBR, brandCode: vl.BRANDCODE,
@@ -97,7 +112,7 @@ function flattenExtract(xml, meta = {}) {
     timeEntryCount: laborOps.length,
   };
 
-  return { vehicle, laborOps };
+  return { vehicle, laborOps, warnings };
 }
 
 module.exports = { flattenExtract };

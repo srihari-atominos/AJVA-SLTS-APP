@@ -9,6 +9,8 @@
     "import:mongo": "node src/scripts/import-mongo.js",
     "import:mssql": "node src/scripts/import-mssql.js",
     "create-super-admin": "node src/scripts/createSuperAdmin.js",
+    "backfill:vehicle-meta": "node src/scripts/backfill-vehicle-meta.js",
+    "test": "node --test",
     "start": "node src/server.js"
   },
   "dependencies": {

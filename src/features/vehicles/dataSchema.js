@@ -13,8 +13,19 @@
  * "rebuild from scratch" path; this is the safe, automatic one.
  *
  * The column definitions here mirror those scripts exactly — keep them in
- * sync if a column is ever added.
+ * sync if a column is ever added. Columns added AFTER a table first shipped
+ * also go in ADDED_COLUMNS below, so an existing database is upgraded in
+ * place (ALTER TABLE ... ADD, only if the column is missing) at startup.
  */
+
+// Columns added after the initial schema: [table, column, sqliteType, mssqlType].
+// prodStart/prodEnd: production window ("YYYY-MM") parsed from the vehicle
+// description of regional extracts whose header has no model year — see
+// vehicleMeta.js.
+const ADDED_COLUMNS = [
+  ['vehicles', 'prodStart', 'TEXT', 'NVARCHAR(10) NULL'],
+  ['vehicles', 'prodEnd', 'TEXT', 'NVARCHAR(10) NULL'],
+];
 
 const SQLITE_DDL = `
   CREATE TABLE IF NOT EXISTS vehicles (
@@ -34,7 +45,9 @@ const SQLITE_DDL = `
     abbr          TEXT,
     brandCode     TEXT,
     laborOpCount  INTEGER,
-    timeEntryCount INTEGER
+    timeEntryCount INTEGER,
+    prodStart     TEXT,
+    prodEnd       TEXT
   );
   CREATE TABLE IF NOT EXISTS engines (
     vehicleId INTEGER NOT NULL REFERENCES vehicles(id),
@@ -102,7 +115,9 @@ const MSSQL_DDL = [
      abbr          NVARCHAR(100),
      brandCode     NVARCHAR(20),
      laborOpCount  INT,
-     timeEntryCount INT
+     timeEntryCount INT,
+     prodStart     NVARCHAR(10) NULL,
+     prodEnd       NVARCHAR(10) NULL
    );`,
   `IF OBJECT_ID('engines', 'U') IS NULL
    CREATE TABLE engines (
@@ -158,13 +173,26 @@ const MSSQL_DDL = [
    CREATE INDEX idx_ops_sort ON laborops(laborDescCode, fullLaborOpCode);`,
 ];
 
-/** Create any missing warranty data tables/indexes. Safe to call on every start. */
+/** Add any column from ADDED_COLUMNS that an older database is missing. */
+async function addMissingColumns(db) {
+  for (const [table, column, sqliteType, mssqlType] of ADDED_COLUMNS) {
+    if (db.driver === 'mssql') {
+      await db.run(`IF COL_LENGTH('${table}', '${column}') IS NULL ALTER TABLE ${table} ADD ${column} ${mssqlType};`, []);
+    } else {
+      const existing = db.raw.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+      if (!existing.includes(column)) db.raw.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${sqliteType};`);
+    }
+  }
+}
+
+/** Create any missing warranty data tables/indexes/columns. Safe to call on every start. */
 async function ensureWarrantySchema(db) {
   if (db.driver === 'mssql') {
     for (const stmt of MSSQL_DDL) await db.run(stmt, []);
   } else {
     db.raw.exec(SQLITE_DDL); // sqlite DDL is synchronous on the raw handle, same as users/schema.js
   }
+  await addMissingColumns(db);
 }
 
 module.exports = { ensureWarrantySchema };

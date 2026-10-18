@@ -49,7 +49,9 @@ async function main() {
       abbr          TEXT,
       brandCode     TEXT,
       laborOpCount  INTEGER,
-      timeEntryCount INTEGER
+      timeEntryCount INTEGER,
+      prodStart     TEXT,
+      prodEnd       TEXT
     );
 
     CREATE TABLE engines (
@@ -97,8 +99,8 @@ async function main() {
 
   const insVeh = db.prepare(`INSERT INTO vehicles
     (vehKey, fileName, folder, source, gsa, language, modYear, prodType, extractId, extractDate,
-     vehCode, vehDesc, abbr, brandCode, laborOpCount, timeEntryCount)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+     vehCode, vehDesc, abbr, brandCode, laborOpCount, timeEntryCount, prodStart, prodEnd)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const insEng = db.prepare(`INSERT INTO engines VALUES (?,?,?,?,?)`);
   const insTrans = db.prepare(`INSERT INTO transmissions VALUES (?,?,?,?)`);
   const insFeat = db.prepare(`INSERT INTO features VALUES (?,?,?,?)`);
@@ -115,7 +117,7 @@ async function main() {
     const r = insVeh.run(
       v.vehKey, v.fileName, v.folder, v.source, v.gsa, v.language, v.modYear, v.prodType,
       String(v.extractId ?? ''), v.extractDate, v.vehCode, v.vehDesc, v.abbr, v.brandCode,
-      v.laborOpCount, v.timeEntryCount
+      v.laborOpCount, v.timeEntryCount, v.prodStart ?? null, v.prodEnd ?? null
     );
     const id = Number(r.lastInsertRowid);
     for (const e of v.engines || []) insEng.run(id, e.engCode ?? null, e.desc ?? null, e.abbr ?? null, e.numCyl ?? null);

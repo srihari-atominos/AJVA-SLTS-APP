@@ -62,6 +62,7 @@ async function main() {
       console.warn(`  SKIP (no PUBEXTRACT): ${file}`);
       continue;
     }
+    for (const w of result.warnings || []) console.warn(`  WARN ${w}`);
 
     for (const row of result.laborOps) await writeLine(opStream, row);
     await writeLine(vehStream, result.vehicle);

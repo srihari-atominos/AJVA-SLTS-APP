@@ -27,19 +27,26 @@ const { DatabaseSync } = require('node:sqlite');
 const sql = require('mssql');
 
 // ---- SQLite implementation (synchronous under the hood, async interface) ----
+// node:sqlite refuses to bind `undefined` ("Provided value cannot be bound
+// to SQLite parameter N") while the MSSQL context below already maps it to
+// NULL. An extract that simply lacks an optional element (the EU files have
+// no <ABBR>/<BRANDCODE>) must behave the same on both drivers, so normalise
+// here rather than sprinkling `?? null` across every repository.
+const bindable = (params) => params.map((v) => (v === undefined ? null : v));
+
 function makeSqliteContext(db) {
   async function all(sqlText, params = []) {
-    return db.prepare(sqlText).all(...params);
+    return db.prepare(sqlText).all(...bindable(params));
   }
   async function get(sqlText, params = []) {
-    return db.prepare(sqlText).get(...params);
+    return db.prepare(sqlText).get(...bindable(params));
   }
   async function run(sqlText, params = []) {
-    const r = db.prepare(sqlText).run(...params);
+    const r = db.prepare(sqlText).run(...bindable(params));
     return { changes: r.changes };
   }
   async function insert(sqlText, params = []) {
-    const r = db.prepare(sqlText).run(...params);
+    const r = db.prepare(sqlText).run(...bindable(params));
     return { id: Number(r.lastInsertRowid) };
   }
   async function transaction(fn) {

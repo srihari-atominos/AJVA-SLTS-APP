@@ -59,7 +59,9 @@ async function ensureSchema(db) {
       abbr          NVARCHAR(100),
       brandCode     NVARCHAR(20),
       laborOpCount  INT,
-      timeEntryCount INT
+      timeEntryCount INT,
+      prodStart     NVARCHAR(10) NULL,
+      prodEnd       NVARCHAR(10) NULL
     );
   `, []);
 
@@ -133,8 +135,8 @@ async function main() {
 
   const insertVehicleSql = `INSERT INTO vehicles
     (vehKey, fileName, folder, source, gsa, language, modYear, prodType, extractId, extractDate,
-     vehCode, vehDesc, abbr, brandCode, laborOpCount, timeEntryCount)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+     vehCode, vehDesc, abbr, brandCode, laborOpCount, timeEntryCount, prodStart, prodEnd)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
   const insertLaborOpSql = `INSERT INTO laborops
     (vehKey, source, gsa, modYear, vehDesc, brandCode, laborDescCode, baseLaborOp, combo,
      complexCode, operationDesc, operType, secNo, secDesc, tsid, effectiveDate, status,
@@ -150,7 +152,7 @@ async function main() {
       const { id } = await tx.insert(insertVehicleSql, [
         v.vehKey, v.fileName, v.folder, v.source, v.gsa, v.language, v.modYear, v.prodType,
         String(v.extractId ?? ''), v.extractDate, v.vehCode, v.vehDesc, v.abbr, v.brandCode,
-        v.laborOpCount, v.timeEntryCount,
+        v.laborOpCount, v.timeEntryCount, v.prodStart ?? null, v.prodEnd ?? null,
       ]);
       for (const e of v.engines || []) {
         await tx.run('INSERT INTO engines VALUES (?,?,?,?,?)', [id, e.engCode ?? null, e.desc ?? null, e.abbr ?? null, e.numCyl ?? null]);
