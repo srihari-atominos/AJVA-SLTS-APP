@@ -26,6 +26,12 @@
     '.sidebar-logout { padding: 6px 12px; border: 1px solid #374151; background: transparent; color: #d1d5db; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; }',
     '.sidebar-logout:hover { background: #7f1d1d; border-color: #7f1d1d; color: #fff; }',
     '.main { flex: 1; min-width: 0; }',
+    '.sidebar-head { display: flex; align-items: flex-start; justify-content: space-between; }',
+    '.sidebar-hide { margin: 18px 12px 0 0; width: 30px; height: 30px; border: 1px solid #374151; background: transparent; color: #9ca3af; border-radius: 8px; font-size: 16px; line-height: 1; cursor: pointer; }',
+    '.sidebar-hide:hover { background: #1f2937; color: #fff; }',
+    '.sidebar-show { position: fixed; top: 14px; left: 14px; z-index: 50; width: 36px; height: 36px; border: 1px solid #374151; background: #111827; color: #e5e7eb; border-radius: 8px; font-size: 18px; line-height: 1; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.18); }',
+    '.sidebar-show:hover { background: #1f2937; color: #fff; }',
+    '.layout.sidebar-hidden .wrap { padding-left: 64px; }',
     '@media (max-width: 760px) { .layout { flex-direction: column; } .sidebar { position: static; height: auto; width: auto; flex: none; } .sidebar-user { margin-top: 0; } }',
   ].join('\n');
   var style = document.createElement('style');
@@ -39,12 +45,39 @@
     return h('a', { href: href, className: 'sidebar-link' + (isActive ? ' active' : '') }, label);
   }
 
+  // Hidden/shown state is remembered per browser (localStorage) so it
+  // sticks across pages and reloads. Guarded: storage can be unavailable
+  // in private windows, in which case it simply starts visible each time.
+  var STORAGE_KEY = 'slts.sidebarHidden';
+  function readHidden() { try { return localStorage.getItem(STORAGE_KEY) === '1'; } catch (e) { return false; } }
+  function writeHidden(v) { try { localStorage.setItem(STORAGE_KEY, v ? '1' : '0'); } catch (e) { /* ignore */ } }
+
   function Sidebar(props) {
     var me = props.me;
     var active = props.active;
     var canManage = !!me && (me.role === 'ADMIN' || me.role === 'SUPER_ADMIN');
+    var state = React.useState(readHidden);
+    var hidden = state[0];
+    var setHidden = state[1];
+
+    // The page frame (.layout) is the parent; toggle a class on it so the
+    // content can pad itself away from the floating "show" button.
+    React.useEffect(function () {
+      var layout = document.querySelector('.layout');
+      if (layout) layout.classList.toggle('sidebar-hidden', hidden);
+    }, [hidden]);
+
+    function toggle() { var next = !hidden; setHidden(next); writeHidden(next); }
+
+    if (hidden) {
+      return h('button', { className: 'sidebar-show', onClick: toggle, title: 'Show menu', 'aria-label': 'Show menu' }, '☰');
+    }
+
     return h('aside', { className: 'sidebar' },
-      h('div', { className: 'sidebar-brand' }, 'SLTS', h('small', null, 'Service Labor Time Standards')),
+      h('div', { className: 'sidebar-head' },
+        h('div', { className: 'sidebar-brand' }, 'SLTS', h('small', null, 'Service Labor Time Standards')),
+        h('button', { className: 'sidebar-hide', onClick: toggle, title: 'Hide menu', 'aria-label': 'Hide menu' }, '«')
+      ),
       h('nav', { className: 'sidebar-nav' },
         link('/', 'Labor Times', active === 'data'),
         canManage ? h('div', { className: 'sidebar-section' }, 'Administration') : null,
