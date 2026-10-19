@@ -128,6 +128,16 @@
   }
   .chg-new { background: #dcfce7; color: #16803c; }
   .chg-mod { background: #fef3c7; color: #b45309; }
+  /* "New items" / "Time modified" checkboxes in the filter bar */
+  .change-toggles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
+  .change-toggles .toggle {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--border);
+    border-radius: 999px; background: var(--card); font-size: 13.5px; font-weight: 600; cursor: pointer; user-select: none;
+  }
+  .change-toggles .toggle.on { border-color: var(--accent); background: #eef2fb; }
+  .change-toggles .toggle input { margin: 0; cursor: pointer; }
+  .change-toggles .toggle .chg { margin-left: 0; }
+  .change-toggles .toggle-hint { color: var(--muted); font-size: 12.5px; }
   .code { font-family: Consolas, monospace; font-size: 14px; color: var(--accent); white-space: nowrap; }
   .muted { color: var(--muted); }
   .pager { display: flex; align-items: center; gap: 12px; padding: 12px; justify-content: flex-end; }
@@ -239,7 +249,15 @@ function App() {
   const [vehKey, setVehKey] = useState('');
   const [modYear, setModYear] = useState('');
   const [gsa, setGsa] = useState('');
-  const [change, setChange] = useState(''); // '' | 'any' | 'added' | 'modified' — what happened to the entry in its vehicle's last update
+  // "New items" / "Time modified" checkboxes -> the API's change filter
+  // ('added' | 'modified' | 'any' for both). Markers count for
+  // changeHighlightDays (from /auth/public-config) after the change.
+  const [showNew, setShowNew] = useState(false);
+  const [showModified, setShowModified] = useState(false);
+  const change = showNew && showModified ? 'any' : showNew ? 'added' : showModified ? 'modified' : '';
+  const [changeHighlightDays, setChangeHighlightDays] = useState(7);
+  const changeCutoffMs = Date.now() - changeHighlightDays * 24 * 60 * 60 * 1000;
+  const isFresh = (r) => !!r.changeType && !!r.changedAt && new Date(r.changedAt).getTime() >= changeCutoffMs;
   const [search, setSearch] = useState('');
   const [exactMode, setExactMode] = useState(false); // true right after clicking Search / pressing Enter
   const [page, setPage] = useState(1);
@@ -265,7 +283,10 @@ function App() {
   useEffect(refreshAll, []);
   useEffect(() => {
     fetch('/auth/me').then(r => r.json()).then(d => { setMe(d.user); setSsoAvailable(d.ssoAvailable); });
-    fetch('/auth/public-config').then(r => r.json()).then(d => setMaxLaborHours(d.maxLaborHours));
+    fetch('/auth/public-config').then(r => r.json()).then(d => {
+      setMaxLaborHours(d.maxLaborHours);
+      if (d.changeHighlightDays) setChangeHighlightDays(d.changeHighlightDays);
+    });
     if (location.search.includes('link=')) {
       history.replaceState(null, '', location.pathname); // don't keep re-showing the banner on refresh
     }
@@ -324,7 +345,8 @@ function App() {
   function clearFilters() {
     setModYear('');
     setGsa('');
-    setChange('');
+    setShowNew(false);
+    setShowModified(false);
     setVehKey('');
     setSearch('');
     setExactMode(false);
@@ -522,12 +544,6 @@ function App() {
             <option key={m} value={m}>{countryName[m] || m}</option>
           ))}
         </select>
-        <select className="narrow" value={change} onChange={e => setChange(e.target.value)} title="What happened to the entry in its vehicle's most recent update">
-          <option value="">All entries</option>
-          <option value="any">Changed in last update</option>
-          <option value="added">New in last update</option>
-          <option value="modified">Time modified in last update</option>
-        </select>
         <select value={vehKey} onChange={e => setVehKey(e.target.value)}>
           <option value="">
             All vehicles{modYear ? ` · ${modYear}` : ''}{gsa ? ` · ${countryName[gsa] || gsa}` : ''}
@@ -555,6 +571,17 @@ function App() {
         <button className="clear" onClick={clearFilters} disabled={!hasFilters}>
           Clear
         </button>
+        <div className="change-toggles" title={`Entries added or changed in the last ${changeHighlightDays} days`}>
+          <label className={'toggle' + (showNew ? ' on' : '')}>
+            <input type="checkbox" checked={showNew} onChange={e => setShowNew(e.target.checked)} />
+            <span className="chg chg-new">NEW</span> New items
+          </label>
+          <label className={'toggle' + (showModified ? ' on' : '')}>
+            <input type="checkbox" checked={showModified} onChange={e => setShowModified(e.target.checked)} />
+            <span className="chg chg-mod">MODIFIED</span> Time modified
+          </label>
+          <span className="toggle-hint">last {changeHighlightDays} days</span>
+        </div>
       </div>
 
       <div className="card">
@@ -580,13 +607,13 @@ function App() {
                   <td>{r.operationDesc}</td>
                   <td>{r.categoryCode}</td>
                   <td className="muted">{r.qualDesc || r.catDesc || '—'}</td>
-                  <td className="num" title={r.changedAt ? `${r.changeType === 'added' ? 'Added' : 'Time modified'} ${formatWhen(r.changedAt)}` : undefined}>
-                    {r.changeType === 'modified' && r.prevTotTime != null && (
+                  <td className="num" title={isFresh(r) ? `${r.changeType === 'added' ? 'Added' : 'Time modified'} ${formatWhen(r.changedAt)}` : undefined}>
+                    {isFresh(r) && r.changeType === 'modified' && r.prevTotTime != null && (
                       <s className="prev-time">{Number(r.prevTotTime).toFixed(1)}</s>
                     )}
                     {r.totTime != null ? r.totTime.toFixed(1) : '—'}
-                    {r.changeType === 'added' && <span className="chg chg-new">NEW</span>}
-                    {r.changeType === 'modified' && <span className="chg chg-mod">MODIFIED</span>}
+                    {isFresh(r) && r.changeType === 'added' && <span className="chg chg-new">NEW</span>}
+                    {isFresh(r) && r.changeType === 'modified' && <span className="chg chg-mod">MODIFIED</span>}
                   </td>
                   <td className="muted">{r.secNo} {r.secDesc}</td>
                   <td>{r.vehDesc}</td>

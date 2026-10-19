@@ -21,14 +21,21 @@ function httpError(message, status) {
   return Object.assign(new Error(message), { status });
 }
 
+/** ISO timestamp of "now minus the highlight window" — markers older than this are hidden. */
+function changeCutoffIso() {
+  return new Date(Date.now() - config.laborTime.changeHighlightDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
 function parseFilters(query) {
+  const change = ['added', 'modified', 'any'].includes(query.change) ? query.change : null;
   return {
     vehKey: query.vehKey || null,
     modYear: query.modYear || null,
     gsa: query.gsa || null,
     q: query.q || null,
     exact: query.exact === 'true' || query.exact === '1',
-    change: ['added', 'modified', 'any'].includes(query.change) ? query.change : null,
+    change,
+    changeSince: change ? changeCutoffIso() : null,
   };
 }
 
@@ -69,7 +76,9 @@ function makeLaborOpsService(db, auditService) {
   async function markChanges(vehKey, rows, dbCtx) {
     const targetRepo = dbCtx ? makeLaborOpsRepository(dbCtx) : repo;
     const existing = await targetRepo.listEntriesForVehicle(vehKey);
-    return diffEntries(existing, rows, new Date().toISOString());
+    // Markers younger than the window are carried over onto unchanged rows,
+    // so a ribbon set by an earlier upload keeps showing for its full 7 days.
+    return diffEntries(existing, rows, new Date().toISOString(), changeCutoffIso());
   }
 
   async function listPage(query) {
@@ -107,10 +116,12 @@ function makeLaborOpsService(db, auditService) {
     }
     const before = await repo.findFullById(id);
     if (!before) throw httpError('Labor-time row not found', 404);
-    // Keep the ORIGINAL value if the row was already marked modified in
-    // this update cycle, so "was 0.5, now 0.9" survives a second edit
-    // rather than collapsing to the intermediate value.
-    const prev = before.changeType === 'modified' && before.prevTotTime != null ? before.prevTotTime : before.totTime;
+    // Keep the ORIGINAL value if the row was already marked modified
+    // within the highlight window, so "was 0.5, now 0.9" survives a second
+    // edit rather than collapsing to the intermediate value.
+    const recentlyModified = before.changeType === 'modified' && before.prevTotTime != null
+      && before.changedAt && before.changedAt >= changeCutoffIso();
+    const prev = recentlyModified ? before.prevTotTime : before.totTime;
     await repo.updateTotTime(id, n, prev, new Date().toISOString());
     if (auditService) {
       await auditService.record({

@@ -125,6 +125,11 @@ module.exports = {
     // Sanity bound for a labor-time edit (hours). Rejects obvious typos
     // (e.g. a stray extra digit) without hardcoding it inline at the call site.
     maxHours: num(process.env.MAX_LABOR_HOURS, 999),
+    // How long an entry keeps its NEW / MODIFIED ribbon (and stays in the
+    // "new items" / "time modified" filters) after the upload or edit that
+    // changed it. Uploads happen file by file over days, so the window is
+    // time-based rather than "since the last upload".
+    changeHighlightDays: num(process.env.CHANGE_HIGHLIGHT_DAYS, 7),
   },
 
   // Only used by the optional `npm run import:mongo` path.

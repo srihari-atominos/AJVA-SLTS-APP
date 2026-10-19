@@ -40,6 +40,7 @@ function makeUsersController(service) {
         appName: config.APP_NAME,
         passwordMinLength: config.auth.passwordMinLength,
         maxLaborHours: config.laborTime.maxHours,
+        changeHighlightDays: config.laborTime.changeHighlightDays,
         samlEnabled: config.saml.enabled,
       });
     },

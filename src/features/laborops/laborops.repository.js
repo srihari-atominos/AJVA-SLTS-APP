@@ -17,16 +17,19 @@
  * its own transaction (see that file's header comment).
  */
 function buildWhere(filters) {
-  const { vehKey, modYear, gsa, q, exact, change } = filters;
+  const { vehKey, modYear, gsa, q, exact, change, changeSince } = filters;
   const where = [];
   const params = [];
   if (vehKey) { where.push('vehKey = ?'); params.push(vehKey); }
   if (modYear) { where.push('modYear = ?'); params.push(modYear); }
   if (gsa) { where.push('gsa = ?'); params.push(gsa); }
-  // 'added' | 'modified' (what happened to the entry in its vehicle's last
-  // update) or 'any' for either — see changes.js.
-  if (change === 'any') where.push('changeType IS NOT NULL');
-  else if (change) { where.push('changeType = ?'); params.push(change); }
+  // 'added' | 'modified' | 'any' — entries changed within the highlight
+  // window (changeSince = now minus CHANGE_HIGHLIGHT_DAYS). See changes.js.
+  if (change) {
+    if (change === 'any') where.push('changeType IS NOT NULL');
+    else { where.push('changeType = ?'); params.push(change); }
+    if (changeSince) { where.push('changedAt >= ?'); params.push(changeSince); }
+  }
   if (q && q.trim()) {
     if (exact) {
       // Exact code match on the full claimable op code only (case-insensitive).
@@ -64,10 +67,10 @@ function makeLaborOpsRepository(db) {
       o.changeType ?? null, o.prevTotTime ?? null, o.changedAt ?? null,
     ]),
 
-    // The identifying columns + time of every entry a vehicle has now, for
-    // diffing against a re-uploaded extract (changes.js).
+    // The identifying columns, time and current marker of every entry a
+    // vehicle has now, for diffing against a re-uploaded extract (changes.js).
     listEntriesForVehicle: (vehKey) => db.all(
-      'SELECT fullLaborOpCode, tsid, qualDesc, categoryCode, totTime FROM laborops WHERE vehKey = ?', [vehKey]
+      'SELECT fullLaborOpCode, tsid, qualDesc, categoryCode, totTime, changeType, prevTotTime, changedAt FROM laborops WHERE vehKey = ?', [vehKey]
     ),
 
     findById: (id) => db.get('SELECT id FROM laborops WHERE id = ?', [id]),
