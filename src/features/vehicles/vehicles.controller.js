@@ -13,11 +13,11 @@ function makeVehiclesController(service) {
       if (files.length === 0) {
         return res.status(400).json({ error: 'No files uploaded (field name must be "files")' });
       }
-      res.json(await service.importUploadedFiles(files));
+      res.json(await service.importUploadedFiles(files, req.user));
     },
 
     async remove(req, res) {
-      const result = await service.deleteByVehKey(req.params.vehKey);
+      const result = await service.deleteByVehKey(req.params.vehKey, req.user);
       if (!result) return res.status(404).json({ error: 'Vehicle not found' });
       res.json({ ok: true, ...result });
     },

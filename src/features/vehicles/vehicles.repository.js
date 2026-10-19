@@ -17,7 +17,11 @@ function makeVehiclesRepository(db) {
       FROM vehicles ORDER BY modYear, vehDesc
     `, []),
 
-    findByVehKey: (vehKey) => db.get('SELECT id FROM vehicles WHERE vehKey = ?', [vehKey]),
+    findByVehKey: (vehKey) => db.get('SELECT id, vehDesc FROM vehicles WHERE vehKey = ?', [vehKey]),
+    // How many labor-time rows a vehicle currently has — recorded in the
+    // audit log as "rows removed" before an upload replaces or a delete
+    // removes them.
+    countLaborOps: async (vehKey) => (await db.get('SELECT COUNT(*) AS n FROM laborops WHERE vehKey = ?', [vehKey])).n,
     count: async () => (await db.get('SELECT COUNT(*) AS n FROM vehicles', [])).n,
     // A vehicle whose description carries no model year at all (see
     // vehicleMeta.js) has modYear NULL — it stays listable but is not a

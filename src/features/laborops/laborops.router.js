@@ -14,11 +14,11 @@ const { asyncHandler } = require('../../middlewares/asyncHandler');
 const { makeLaborOpsService } = require('./laborops.service');
 const { makeLaborOpsController } = require('./laborops.controller');
 
-function makeLaborOpsRouter(db, rbac) {
+function makeLaborOpsRouter(db, rbac, auditService) {
   const router = express.Router();
   const { requireAuth, requireRole } = rbac;
 
-  const service = makeLaborOpsService(db);
+  const service = makeLaborOpsService(db, auditService);
   const controller = makeLaborOpsController(service);
 
   router.get('/api/laborops', requireAuth, asyncHandler(controller.list));

@@ -44,7 +44,7 @@ function csvEscape(v) {
   return s;
 }
 
-function makeLaborOpsService(db) {
+function makeLaborOpsService(db, auditService) {
   const repo = makeLaborOpsRepository(db);
 
   function getCount() {
@@ -83,15 +83,23 @@ function makeLaborOpsService(db) {
   // The ONLY per-row write exposed: totTime, and only totTime. Every other
   // column (codes, description, vehicle, section, etc.) comes exclusively
   // from an uploaded XML extract, never a manual edit.
-  async function editTotTime(id, totTime) {
+  async function editTotTime(id, totTime, user) {
     if (!Number.isInteger(id)) throw httpError('Invalid id', 400);
     const n = Number(totTime);
     const maxHours = config.laborTime.maxHours;
     if (!Number.isFinite(n) || n < 0 || n > maxHours) {
       throw httpError(`totTime must be a number between 0 and ${maxHours}`, 400);
     }
-    if (!(await repo.findById(id))) throw httpError('Labor-time row not found', 404);
+    const before = await repo.findFullById(id);
+    if (!before) throw httpError('Labor-time row not found', 404);
     await repo.updateTotTime(id, n);
+    if (auditService) {
+      await auditService.record({
+        action: 'edit', mode: 'edited',
+        vehKey: before.vehKey, vehDesc: before.vehDesc,
+        details: `${before.fullLaborOpCode} (${before.operationDesc}): time ${before.totTime} -> ${n} hrs`,
+      }, user);
+    }
     return repo.findFullById(id);
   }
 

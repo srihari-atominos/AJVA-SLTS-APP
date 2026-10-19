@@ -17,11 +17,11 @@ const { upload } = require('./upload.middleware');
 const { makeVehiclesService } = require('./vehicles.service');
 const { makeVehiclesController } = require('./vehicles.controller');
 
-function makeVehiclesRouter(db, rbac, laborOpsService) {
+function makeVehiclesRouter(db, rbac, laborOpsService, auditService) {
   const router = express.Router();
   const { requireAuth, requireRole } = rbac;
 
-  const service = makeVehiclesService(db, laborOpsService);
+  const service = makeVehiclesService(db, laborOpsService, auditService);
   const controller = makeVehiclesController(service);
 
   router.get('/api/vehicles', requireAuth, asyncHandler(controller.list));

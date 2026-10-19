@@ -14,6 +14,7 @@ const { makeUsersRouter } = require('./features/users/users.router');
 const { makeLaborOpsRouter } = require('./features/laborops/laborops.router');
 const { makeVehiclesRouter } = require('./features/vehicles/vehicles.router');
 const { makeStatsRouter } = require('./features/stats/stats.router');
+const { makeAuditRouter } = require('./features/audit/audit.router');
 
 function createApp(db) {
   const app = express();
@@ -44,11 +45,15 @@ function createApp(db) {
   // their router so stats (and vehicles, for labor-op inserts on upload)
   // can call across features without reaching into another feature's
   // repository — that composition happens here, not inside a feature.
-  const { router: laborOpsRouter, service: laborOpsService } = makeLaborOpsRouter(db, rbac);
-  const { router: vehiclesRouter, service: vehiclesService } = makeVehiclesRouter(db, rbac, laborOpsService);
+  // Audit first: every data-changing feature (upload/delete in vehicles,
+  // the time edit in laborops) records through its service.
+  const { router: auditRouter, service: auditService } = makeAuditRouter(db, rbac);
+  const { router: laborOpsRouter, service: laborOpsService } = makeLaborOpsRouter(db, rbac, auditService);
+  const { router: vehiclesRouter, service: vehiclesService } = makeVehiclesRouter(db, rbac, laborOpsService, auditService);
   const statsRouter = makeStatsRouter(rbac, vehiclesService, laborOpsService);
 
   app.use(makeUsersRouter(db, rbac));
+  app.use(auditRouter);
   app.use(laborOpsRouter);
   app.use(vehiclesRouter);
   app.use(statsRouter);
@@ -58,6 +63,7 @@ function createApp(db) {
   // these files to anyone who requests them directly by name.
   app.get('/', requireAuth, (req, res) => res.sendFile(path.join(config.publicDir, 'index.html')));
   app.get('/users.html', requireRole('ADMIN', 'SUPER_ADMIN'), (req, res) => res.sendFile(path.join(config.publicDir, 'users.html')));
+  app.get('/audit.html', requireRole('ADMIN', 'SUPER_ADMIN'), (req, res) => res.sendFile(path.join(config.publicDir, 'audit.html')));
 
   // Remaining static files: login.html, signup.html are intentionally public.
   app.use(express.static(config.publicDir, { index: false }));

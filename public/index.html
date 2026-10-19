@@ -7,6 +7,7 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script src="/sidebar.js"></script>
 <style>
   :root {
     --bg: #f5f6f8; --card: #ffffff; --text: #1a2233; --muted: #6b7486;
@@ -18,7 +19,11 @@
   .header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   h1 { font-size: 22px; margin: 0; }
   .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-  .sub { color: var(--muted); font-size: 14px; margin: 6px 0 20px; }
+  .sub { color: var(--muted); font-size: 14px; margin: 6px 0 8px; }
+  .last-updated {
+    display: inline-block; margin: 0 0 18px; padding: 6px 12px; border-radius: 999px;
+    background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 13px; font-weight: 600;
+  }
   .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
   select, input[type=text] {
     padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
@@ -221,6 +226,7 @@ function App() {
   const [linkMsg, setLinkMsg] = useState(() => LINK_MSG[new URLSearchParams(location.search).get('link')] || null);
   const [maxLaborHours, setMaxLaborHours] = useState(999); // overwritten from /auth/public-config on load
   const [stats, setStats] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null); // latest audit_log change, shown in the header for every user
   const [vehicles, setVehicles] = useState([]);
   const [vehKey, setVehKey] = useState('');
   const [modYear, setModYear] = useState('');
@@ -240,6 +246,7 @@ function App() {
 
   function refreshAll() {
     fetch('/api/stats').then(r => r.json()).then(setStats);
+    fetch('/api/audit/last-updated').then(r => r.json()).then(d => setLastUpdated(d.lastUpdated));
     fetch('/api/vehicles').then(r => r.json()).then(setVehicles);
     setRefreshTick(t => t + 1);
   }
@@ -415,10 +422,22 @@ function App() {
     }
   }
 
+  function lastUpdatedText(u) {
+    const what = u.action === 'import'
+      ? `${u.fileName || u.vehDesc} ${u.mode === 'updated' ? 're-imported' : 'imported'}`
+      : u.action === 'edit' ? `time edited on ${u.vehDesc}`
+      : u.action === 'delete' ? `${u.vehDesc} deleted`
+      : u.action;
+    return `Last updated on ${formatWhen(u.at)}${u.userEmail ? ` by ${u.userEmail}` : ''} — ${what}`;
+  }
+
   return (
+    <div className="layout">
+    <Sidebar active="data" me={me} onLogout={logout} />
+    <div className="main">
     <div className="wrap">
       <div className="header-row">
-        <h1>SLTS</h1>
+        <h1>Labor Times</h1>
         <div className="header-actions">
           {canEdit && (
             <React.Fragment>
@@ -434,14 +453,6 @@ function App() {
           <button className="export" onClick={exportCsv} disabled={exporting || data.total === 0}>
             {exporting ? 'Exporting…' : `Export CSV (${data.total.toLocaleString()} rows)`}
           </button>
-          {canEdit && <a className="manage-users" href="/users.html">Manage Users</a>}
-          {me && (
-            <div className="user-chip">
-              <span className="user-name">{me.name || me.email}</span>
-              <span className="user-role">{me.role === 'SUPER_ADMIN' ? 'Super Admin' : me.role === 'ADMIN' ? 'Admin' : 'Viewer'}</span>
-              <button className="logout" onClick={logout}>Sign out</button>
-            </div>
-          )}
         </div>
       </div>
       <div className="sub">
@@ -451,6 +462,9 @@ function App() {
         {me && ssoAvailable && !me.windowsUsername && (
           <React.Fragment> · <a className="link-windows" href="/auth/link-windows">Link your Windows account for one-click sign-in</a></React.Fragment>
         )}
+      </div>
+      <div className="last-updated" title={lastUpdated ? `${lastUpdated.rowsAdded || 0} entries added, ${lastUpdated.rowsRemoved || 0} replaced` : ''}>
+        {lastUpdated ? lastUpdatedText(lastUpdated) : 'No data changes recorded yet.'}
       </div>
 
       {linkMsg && (
@@ -646,6 +660,8 @@ function App() {
           </div>
         </div>
       )}
+    </div>
+    </div>
     </div>
   );
 }

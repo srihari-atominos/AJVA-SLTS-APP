@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Audit Log — SLTS</title>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script src="/sidebar.js"></script>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1a2233; --muted:#6b7486; --accent:#1d4ed8; --border:#e2e5ea; --row-hover:#eef2fb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { width: 100%; margin: 0; padding: 24px 24px; }
+  .header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 22px; margin: 0; }
+  .sub { color: var(--muted); font-size: 14px; margin: 6px 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: #f0f2f6; font-weight: 600; white-space: nowrap; }
+  tr:hover td { background: var(--row-hover); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .when { white-space: nowrap; }
+  .file { font-family: Consolas, monospace; font-size: 13px; }
+  .veh { color: var(--muted); font-size: 12.5px; }
+  .details { color: var(--muted); font-size: 13px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge.added { background: #dcfce7; color: #16803c; }
+  .badge.updated { background: #fef3c7; color: #b45309; }
+  .badge.edited { background: #dce4fb; color: #1d4ed8; }
+  .badge.deleted { background: #fee2e2; color: #b91c1c; }
+  .badge.failed { background: #1a1a1a; color: #fff; }
+  .plus { color: #16803c; font-weight: 600; }
+  .minus { color: #b91c1c; font-weight: 600; }
+  .pager { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 12px 14px; font-size: 13.5px; color: var(--muted); }
+  .pager button { padding: 7px 14px; border: 1px solid var(--border); background: #fff; border-radius: 8px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  .pager button:disabled { opacity: .4; cursor: default; }
+  .empty { padding: 28px; text-align: center; color: var(--muted); }
+  button.refresh { padding: 9px 16px; border: 1px solid var(--border); background: #fff; color: var(--text); border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.refresh:hover { background: var(--row-hover); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+const ACTION_LABEL = { import: 'Import', edit: 'Time edit', delete: 'Delete' };
+const MODE_LABEL = { added: 'Added', updated: 'Updated', edited: 'Edited', deleted: 'Deleted', failed: 'Failed' };
+
+function App() {
+  const [me, setMe] = useState(null);
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState({ rows: [], total: 0, limit: 50 });
+  const [loading, setLoading] = useState(false);
+
+  function load() {
+    setLoading(true);
+    fetch(`/api/audit?page=${page}&limit=50`).then(r => r.json()).then(d => { setData(d); setLoading(false); });
+  }
+  useEffect(() => { fetch('/auth/me').then(r => r.json()).then(d => setMe(d.user)); }, []);
+  useEffect(load, [page]);
+
+  async function logout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    location.href = '/login.html';
+  }
+
+  const pages = Math.max(1, Math.ceil(data.total / data.limit));
+
+  return (
+    <div className="layout">
+      <Sidebar active="audit" me={me} onLogout={logout} />
+      <div className="main">
+        <div className="wrap">
+          <div className="header-row">
+            <h1>Audit Log</h1>
+            <button className="refresh" onClick={load} disabled={loading}>{loading ? 'Loading…' : 'Refresh'}</button>
+          </div>
+          <div className="sub">
+            Every change to the labor-time data: which file was imported, by whom, when, and how many entries were added or replaced — plus manual time edits and vehicle deletions. {data.total.toLocaleString()} entries.
+          </div>
+
+          <div className="card">
+            <table>
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>User</th>
+                  <th>Action</th>
+                  <th>File / vehicle</th>
+                  <th>Result</th>
+                  <th style={{textAlign:'right'}}>Entries added</th>
+                  <th style={{textAlign:'right'}}>Entries removed</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.length === 0 && !loading && (
+                  <tr><td colSpan="8" className="empty">No activity recorded yet. Imports, time edits and deletions will appear here.</td></tr>
+                )}
+                {data.rows.map(r => (
+                  <tr key={r.id}>
+                    <td className="when">{formatWhen(r.at)}</td>
+                    <td>{r.userEmail || '—'}</td>
+                    <td>{ACTION_LABEL[r.action] || r.action}</td>
+                    <td>
+                      {r.fileName && <div className="file">{r.fileName}</div>}
+                      {r.vehDesc && <div className="veh">{r.vehDesc}{r.vehKey ? ` · ${r.vehKey}` : ''}</div>}
+                      {!r.fileName && !r.vehDesc && '—'}
+                    </td>
+                    <td><span className={'badge ' + (r.mode || '')}>{MODE_LABEL[r.mode] || r.mode || '—'}</span></td>
+                    <td className="num">{r.rowsAdded ? <span className="plus">+{r.rowsAdded.toLocaleString()}</span> : '—'}</td>
+                    <td className="num">{r.rowsRemoved ? <span className="minus">−{r.rowsRemoved.toLocaleString()}</span> : '—'}</td>
+                    <td className="details">{r.details || ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="pager">
+              <span>{data.total.toLocaleString()} entries · page {data.page || page} of {pages}</span>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}>Prev</button>
+              <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page >= pages}>Next</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

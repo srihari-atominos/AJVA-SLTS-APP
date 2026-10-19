@@ -30,7 +30,7 @@
 const { makeVehiclesRepository } = require('./vehicles.repository');
 const { flattenExtract } = require('./flatten');
 
-function makeVehiclesService(db, laborOpsService) {
+function makeVehiclesService(db, laborOpsService, auditService) {
   const repo = makeVehiclesRepository(db);
 
   async function getStatsCounts() {
@@ -44,12 +44,14 @@ function makeVehiclesService(db, laborOpsService) {
     return repo.listForDropdown();
   }
 
-  async function upsertVehicle(tx, vehicle, laborOps) {
+  async function upsertVehicle(tx, vehicle, laborOps, user, fileName) {
     const txRepo = makeVehiclesRepository(tx);
     const existing = await txRepo.findByVehKey(vehicle.vehKey);
     const mode = existing ? 'updated' : 'added';
 
+    let rowsRemoved = 0;
     if (existing) {
+      rowsRemoved = await txRepo.countLaborOps(vehicle.vehKey);
       await txRepo.deleteVehicleCascade(vehicle.vehKey, existing.id);
     }
 
@@ -60,18 +62,30 @@ function makeVehiclesService(db, laborOpsService) {
 
     await laborOpsService.insertMany(laborOps, tx);
 
-    return { mode, vehicleId };
+    // Logged inside the same transaction, so the audit row exists exactly
+    // when the data change committed and never for one that rolled back.
+    await auditService.record({
+      action: 'import', mode, fileName,
+      vehKey: vehicle.vehKey, vehDesc: vehicle.vehDesc,
+      rowsAdded: laborOps.length, rowsRemoved,
+      details: `${vehicle.laborOpCount} labor ops, ${laborOps.length} time entries` + (rowsRemoved ? ` (replaced ${rowsRemoved})` : ''),
+    }, user, tx);
+
+    return { mode, rowsRemoved, vehicleId };
   }
 
-  async function importUploadedFile(file) {
+  async function importUploadedFile(file, user) {
     const name = file.originalname;
     const xml = file.buffer.toString('utf8');
     const parsed = flattenExtract(xml, { fileName: name, folder: 'uploaded' });
     if (!parsed) {
+      await auditService.record({ action: 'import', mode: 'failed', fileName: name, details: 'Not a recognizable PUBEXTRACT XML file' }, user);
       return { fileName: name, ok: false, error: 'Not a recognizable PUBEXTRACT XML file' };
     }
     if (!parsed.vehicle.vehKey || parsed.vehicle.vehKey.includes('undefined')) {
-      return { fileName: name, ok: false, error: 'Missing EXTRACTDETAILS/VEHLINEDATA fields needed to identify the vehicle' };
+      const error = 'Missing EXTRACTDETAILS/VEHLINEDATA fields needed to identify the vehicle';
+      await auditService.record({ action: 'import', mode: 'failed', fileName: name, details: error }, user);
+      return { fileName: name, ok: false, error };
     }
 
     // Surface derivation fallbacks (e.g. a regional extract with no model
@@ -80,23 +94,28 @@ function makeVehiclesService(db, laborOpsService) {
     for (const w of parsed.warnings || []) console.warn(`[upload] ${w}`);
 
     try {
-      const { mode } = await db.transaction((tx) => upsertVehicle(tx, parsed.vehicle, parsed.laborOps));
+      const { mode, rowsRemoved } = await db.transaction((tx) => upsertVehicle(tx, parsed.vehicle, parsed.laborOps, user, name));
       return {
         fileName: name, ok: true, mode,
         vehKey: parsed.vehicle.vehKey, vehDesc: parsed.vehicle.vehDesc,
         modYear: parsed.vehicle.modYear, gsa: parsed.vehicle.gsa,
         prodStart: parsed.vehicle.prodStart, prodEnd: parsed.vehicle.prodEnd,
         laborOpCount: parsed.vehicle.laborOpCount, timeEntryCount: parsed.vehicle.timeEntryCount,
+        rowsAdded: parsed.laborOps.length, rowsRemoved,
         warnings: parsed.warnings || [],
       };
     } catch (e) {
+      await auditService.record({
+        action: 'import', mode: 'failed', fileName: name,
+        vehKey: parsed.vehicle.vehKey, vehDesc: parsed.vehicle.vehDesc, details: e.message,
+      }, user);
       return { fileName: name, ok: false, error: e.message };
     }
   }
 
-  async function importUploadedFiles(files) {
+  async function importUploadedFiles(files, user) {
     const results = [];
-    for (const file of files) results.push(await importUploadedFile(file));
+    for (const file of files) results.push(await importUploadedFile(file, user));
     return {
       added: results.filter((r) => r.ok && r.mode === 'added').length,
       updated: results.filter((r) => r.ok && r.mode === 'updated').length,
@@ -105,13 +124,20 @@ function makeVehiclesService(db, laborOpsService) {
     };
   }
 
-  async function deleteByVehKey(vehKey) {
+  async function deleteByVehKey(vehKey, user) {
     const existing = await repo.findByVehKey(vehKey);
     if (!existing) return null;
+    let rowsRemoved = 0;
     await db.transaction(async (tx) => {
-      await makeVehiclesRepository(tx).deleteVehicleCascade(vehKey, existing.id);
+      const txRepo = makeVehiclesRepository(tx);
+      rowsRemoved = await txRepo.countLaborOps(vehKey);
+      await txRepo.deleteVehicleCascade(vehKey, existing.id);
+      await auditService.record({
+        action: 'delete', mode: 'deleted', vehKey, vehDesc: existing.vehDesc, rowsRemoved,
+        details: `vehicle and its ${rowsRemoved} time entries deleted`,
+      }, user, tx);
     });
-    return { vehKey };
+    return { vehKey, rowsRemoved };
   }
 
   return { getStatsCounts, listForDropdown, importUploadedFiles, deleteByVehKey };

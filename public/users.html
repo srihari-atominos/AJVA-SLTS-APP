@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Manage Users</title>
+<title>Manage Access — SLTS</title>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script src="/sidebar.js"></script>
 <style>
   :root { --bg:#f5f6f8; --card:#fff; --text:#1a2233; --muted:#6b7486; --accent:#1d4ed8; --border:#e2e5ea; --row-hover:#eef2fb; }
   * { box-sizing: border-box; }
@@ -103,11 +104,18 @@ function App() {
     } finally { setBusy(false); }
   }
 
+  async function logout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    location.href = '/login.html';
+  }
+
   return (
+    <div className="layout">
+    <Sidebar active="users" me={me} onLogout={logout} />
+    <div className="main">
     <div className="wrap">
       <div className="header-row">
-        <h1>Manage Users</h1>
-        <a className="back" href="/">&larr; Back to data</a>
+        <h1>Manage Access</h1>
       </div>
       <div className="sub">
         {me ? `Signed in as ${me.name || me.email} (${me.role === 'SUPER_ADMIN' ? 'Super Admin' : me.role === 'ADMIN' ? 'Admin' : 'Viewer'})` : ''}
@@ -179,6 +187,8 @@ function App() {
           </tbody>
         </table>
       </div>
+    </div>
+    </div>
     </div>
   );
 }

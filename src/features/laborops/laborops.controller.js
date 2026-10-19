@@ -30,7 +30,7 @@ function makeLaborOpsController(service) {
 
     async editTotTime(req, res) {
       try {
-        const row = await service.editTotTime(parseInt(req.params.id, 10), (req.body || {}).totTime);
+        const row = await service.editTotTime(parseInt(req.params.id, 10), (req.body || {}).totTime, req.user);
         res.json({ ok: true, row });
       } catch (err) { handleServiceError(res, err); }
     },

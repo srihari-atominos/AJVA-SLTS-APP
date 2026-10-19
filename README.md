@@ -106,6 +106,15 @@ Query it directly from any SQLite tool, e.g.
 
 Requires Node 22.5+ (built-in SQLite driver). MongoDB is only needed for the optional `import:mongo` path.
 
+## Audit log and "last updated"
+
+Every change to the labor-time data is written to the `audit_log` table (`src/features/audit/`): each imported file (added / updated / failed, with the number of time entries added and the number replaced), each manual time edit (old → new value), and each vehicle deletion — with the signed-in user and a UTC timestamp. Import and delete entries are written inside the same transaction as the data change, so the log never records a change that rolled back.
+
+- **Audit Log page** (`/audit.html`, sidebar → Administration): Admin and Super Admin only, newest first, paginated. API: `GET /api/audit?page=&limit=`.
+- **"Last updated on …"** line in the Labor Times header: visible to every signed-in user, taken from the latest successful entry. API: `GET /api/audit/last-updated`.
+
+The table is created automatically at startup and is never touched by the import scripts, so it survives a data rebuild. Pages share one left sidebar (`public/sidebar.js`, plain React with no build step): Labor Times for everyone; Manage Access and Audit Log for Admin and above (the server gates those routes by role regardless of what the sidebar shows).
+
 ## Regional extracts (EU): deriving year and market
 
 The China (`IM`/`CHN`) and US (`NA`/`USA`) extracts are published per market and model year, so their header carries real values. The European extracts (`EUEN_*.xml`) are published once per vehicle line for the whole region and their header literally says `<GSA>ALL</GSA>` / `<MODYR>ALL</MODYR>` — the only place the year and production window appear is the free-text `<VEHDESC>`, e.g. `Fiesta 1989 (03/1989-09/1996)`, `Ka 2016.5 (04/2016-)`, `Windstar (10/1994-07/2000)`, `Mustang 2024`, `Bronco`.
