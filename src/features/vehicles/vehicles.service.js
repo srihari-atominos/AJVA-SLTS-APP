@@ -49,9 +49,12 @@ function makeVehiclesService(db, laborOpsService, auditService) {
     const existing = await txRepo.findByVehKey(vehicle.vehKey);
     const mode = existing ? 'updated' : 'added';
 
-    let rowsRemoved = 0;
+    // Diff the parsed rows against what the vehicle has NOW (before the
+    // cascade delete below wipes it): marks each row added / modified /
+    // unchanged for the UI and yields the counts for the audit log.
+    const changes = await laborOpsService.markChanges(vehicle.vehKey, laborOps, tx);
+
     if (existing) {
-      rowsRemoved = await txRepo.countLaborOps(vehicle.vehKey);
       await txRepo.deleteVehicleCascade(vehicle.vehKey, existing.id);
     }
 
@@ -64,14 +67,17 @@ function makeVehiclesService(db, laborOpsService, auditService) {
 
     // Logged inside the same transaction, so the audit row exists exactly
     // when the data change committed and never for one that rolled back.
+    const summary = existing
+      ? `${laborOps.length} time entries: ${changes.added} new, ${changes.modified} time changed, ${changes.removed} removed, ${changes.unchanged} unchanged`
+      : `${vehicle.laborOpCount} labor ops, ${laborOps.length} time entries (new vehicle)`;
     await auditService.record({
       action: 'import', mode, fileName,
       vehKey: vehicle.vehKey, vehDesc: vehicle.vehDesc,
-      rowsAdded: laborOps.length, rowsRemoved,
-      details: `${vehicle.laborOpCount} labor ops, ${laborOps.length} time entries` + (rowsRemoved ? ` (replaced ${rowsRemoved})` : ''),
+      rowsAdded: changes.added, rowsModified: changes.modified, rowsRemoved: changes.removed,
+      details: summary,
     }, user, tx);
 
-    return { mode, rowsRemoved, vehicleId };
+    return { mode, changes, vehicleId };
   }
 
   async function importUploadedFile(file, user) {
@@ -94,14 +100,14 @@ function makeVehiclesService(db, laborOpsService, auditService) {
     for (const w of parsed.warnings || []) console.warn(`[upload] ${w}`);
 
     try {
-      const { mode, rowsRemoved } = await db.transaction((tx) => upsertVehicle(tx, parsed.vehicle, parsed.laborOps, user, name));
+      const { mode, changes } = await db.transaction((tx) => upsertVehicle(tx, parsed.vehicle, parsed.laborOps, user, name));
       return {
         fileName: name, ok: true, mode,
         vehKey: parsed.vehicle.vehKey, vehDesc: parsed.vehicle.vehDesc,
         modYear: parsed.vehicle.modYear, gsa: parsed.vehicle.gsa,
         prodStart: parsed.vehicle.prodStart, prodEnd: parsed.vehicle.prodEnd,
         laborOpCount: parsed.vehicle.laborOpCount, timeEntryCount: parsed.vehicle.timeEntryCount,
-        rowsAdded: parsed.laborOps.length, rowsRemoved,
+        rowsAdded: changes.added, rowsModified: changes.modified, rowsRemoved: changes.removed, rowsUnchanged: changes.unchanged,
         warnings: parsed.warnings || [],
       };
     } catch (e) {

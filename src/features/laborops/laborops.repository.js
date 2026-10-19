@@ -17,12 +17,16 @@
  * its own transaction (see that file's header comment).
  */
 function buildWhere(filters) {
-  const { vehKey, modYear, gsa, q, exact } = filters;
+  const { vehKey, modYear, gsa, q, exact, change } = filters;
   const where = [];
   const params = [];
   if (vehKey) { where.push('vehKey = ?'); params.push(vehKey); }
   if (modYear) { where.push('modYear = ?'); params.push(modYear); }
   if (gsa) { where.push('gsa = ?'); params.push(gsa); }
+  // 'added' | 'modified' (what happened to the entry in its vehicle's last
+  // update) or 'any' for either — see changes.js.
+  if (change === 'any') where.push('changeType IS NOT NULL');
+  else if (change) { where.push('changeType = ?'); params.push(change); }
   if (q && q.trim()) {
     if (exact) {
       // Exact code match on the full claimable op code only (case-insensitive).
@@ -43,8 +47,9 @@ function makeLaborOpsRepository(db) {
   const insertSql = `INSERT INTO laborops
     (vehKey, source, gsa, modYear, vehDesc, brandCode, laborDescCode, baseLaborOp, combo,
      complexCode, operationDesc, operType, secNo, secDesc, tsid, effectiveDate, status,
-     fullLaborOpCode, totTime, categoryCode, catDesc, qualDesc, assessedTime)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
+     fullLaborOpCode, totTime, categoryCode, catDesc, qualDesc, assessedTime,
+     changeType, prevTotTime, changedAt)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`;
 
   return {
     countAll: async () => (await db.get('SELECT COUNT(*) AS n FROM laborops', [])).n,
@@ -56,11 +61,22 @@ function makeLaborOpsRepository(db) {
       o.secNo ?? null, o.secDesc ?? null, String(o.tsid ?? ''), o.effectiveDate ?? null,
       o.status ?? null, o.fullLaborOpCode ?? null, o.totTime, o.categoryCode ?? null,
       o.catDesc, o.qualDesc, o.assessedTime ?? null,
+      o.changeType ?? null, o.prevTotTime ?? null, o.changedAt ?? null,
     ]),
+
+    // The identifying columns + time of every entry a vehicle has now, for
+    // diffing against a re-uploaded extract (changes.js).
+    listEntriesForVehicle: (vehKey) => db.all(
+      'SELECT fullLaborOpCode, tsid, qualDesc, categoryCode, totTime FROM laborops WHERE vehKey = ?', [vehKey]
+    ),
 
     findById: (id) => db.get('SELECT id FROM laborops WHERE id = ?', [id]),
     findFullById: (id) => db.get('SELECT * FROM laborops WHERE id = ?', [id]),
-    updateTotTime: (id, n) => db.run('UPDATE laborops SET totTime = ? WHERE id = ?', [n, id]),
+    // A manual edit marks the row 'modified' and keeps the value it replaced.
+    updateTotTime: (id, n, prevTotTime, changedAt) => db.run(
+      'UPDATE laborops SET totTime = ?, changeType = ?, prevTotTime = ?, changedAt = ? WHERE id = ?',
+      [n, 'modified', prevTotTime ?? null, changedAt, id]
+    ),
 
     async countFiltered(filters) {
       const { whereSql, params } = buildWhere(filters);

@@ -51,7 +51,8 @@ function makeAuditService(db) {
     if (!row) return null;
     return {
       at: row.at, userEmail: row.userEmail, action: row.action, mode: row.mode,
-      fileName: row.fileName, vehDesc: row.vehDesc, rowsAdded: row.rowsAdded, rowsRemoved: row.rowsRemoved,
+      fileName: row.fileName, vehDesc: row.vehDesc,
+      rowsAdded: row.rowsAdded, rowsModified: row.rowsModified, rowsRemoved: row.rowsRemoved,
     };
   }
 

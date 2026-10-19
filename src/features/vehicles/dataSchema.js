@@ -22,9 +22,14 @@
 // prodStart/prodEnd: production window ("YYYY-MM") parsed from the vehicle
 // description of regional extracts whose header has no model year — see
 // vehicleMeta.js.
+// changeType/prevTotTime/changedAt: per-entry "what happened in the last
+// update" marker set by uploads and manual edits — see laborops/changes.js.
 const ADDED_COLUMNS = [
   ['vehicles', 'prodStart', 'TEXT', 'NVARCHAR(10) NULL'],
   ['vehicles', 'prodEnd', 'TEXT', 'NVARCHAR(10) NULL'],
+  ['laborops', 'changeType', 'TEXT', 'NVARCHAR(10) NULL'],
+  ['laborops', 'prevTotTime', 'REAL', 'FLOAT NULL'],
+  ['laborops', 'changedAt', 'TEXT', 'NVARCHAR(40) NULL'],
 ];
 
 const SQLITE_DDL = `
@@ -85,7 +90,10 @@ const SQLITE_DDL = `
     categoryCode    TEXT,
     catDesc         TEXT,
     qualDesc        TEXT,
-    assessedTime    TEXT
+    assessedTime    TEXT,
+    changeType      TEXT,
+    prevTotTime     REAL,
+    changedAt       TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_veh_key        ON vehicles(vehKey);
   CREATE INDEX IF NOT EXISTS idx_ops_vehkey     ON laborops(vehKey);
@@ -159,7 +167,10 @@ const MSSQL_DDL = [
      categoryCode    NVARCHAR(20),
      catDesc         NVARCHAR(255),
      qualDesc        NVARCHAR(255),
-     assessedTime    NVARCHAR(20)
+     assessedTime    NVARCHAR(20),
+     changeType      NVARCHAR(10) NULL,
+     prevTotTime     FLOAT NULL,
+     changedAt       NVARCHAR(40) NULL
    );`,
   `IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_veh_key')
    CREATE INDEX idx_veh_key ON vehicles(vehKey);`,
@@ -173,9 +184,13 @@ const MSSQL_DDL = [
    CREATE INDEX idx_ops_sort ON laborops(laborDescCode, fullLaborOpCode);`,
 ];
 
-/** Add any column from ADDED_COLUMNS that an older database is missing. */
-async function addMissingColumns(db) {
-  for (const [table, column, sqliteType, mssqlType] of ADDED_COLUMNS) {
+/**
+ * Add any column from `columns` ([table, column, sqliteType, mssqlType])
+ * that an older database is missing. Exported so other features' schema
+ * modules (audit) can upgrade their own tables the same way.
+ */
+async function addMissingColumns(db, columns = ADDED_COLUMNS) {
+  for (const [table, column, sqliteType, mssqlType] of columns) {
     if (db.driver === 'mssql') {
       await db.run(`IF COL_LENGTH('${table}', '${column}') IS NULL ALTER TABLE ${table} ADD ${column} ${mssqlType};`, []);
     } else {
@@ -195,4 +210,4 @@ async function ensureWarrantySchema(db) {
   await addMissingColumns(db);
 }
 
-module.exports = { ensureWarrantySchema };
+module.exports = { ensureWarrantySchema, addMissingColumns };

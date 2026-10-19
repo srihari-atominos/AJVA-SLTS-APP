@@ -93,7 +93,10 @@ async function main() {
       categoryCode    TEXT,
       catDesc         TEXT,
       qualDesc        TEXT,
-      assessedTime    TEXT
+      assessedTime    TEXT,
+      changeType      TEXT,
+      prevTotTime     REAL,
+      changedAt       TEXT
     );
   `);
 

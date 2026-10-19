@@ -34,6 +34,7 @@
   .badge.failed { background: #1a1a1a; color: #fff; }
   .plus { color: #16803c; font-weight: 600; }
   .minus { color: #b91c1c; font-weight: 600; }
+  .mod { color: #b45309; font-weight: 600; }
   .pager { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 12px 14px; font-size: 13.5px; color: var(--muted); }
   .pager button { padding: 7px 14px; border: 1px solid var(--border); background: #fff; border-radius: 8px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
   .pager button:disabled { opacity: .4; cursor: default; }
@@ -80,7 +81,7 @@ function App() {
             <button className="refresh" onClick={load} disabled={loading}>{loading ? 'Loading…' : 'Refresh'}</button>
           </div>
           <div className="sub">
-            Every change to the labor-time data: which file was imported, by whom, when, and how many entries were added or replaced — plus manual time edits and vehicle deletions. {data.total.toLocaleString()} entries.
+            Every change to the labor-time data: which file was imported, by whom, when, and how many entries were new, had their time modified, or were removed compared with what the vehicle had before — plus manual time edits and vehicle deletions. {data.total.toLocaleString()} entries.
           </div>
 
           <div className="card">
@@ -93,13 +94,14 @@ function App() {
                   <th>File / vehicle</th>
                   <th>Result</th>
                   <th style={{textAlign:'right'}}>Entries added</th>
+                  <th style={{textAlign:'right'}}>Entries modified</th>
                   <th style={{textAlign:'right'}}>Entries removed</th>
                   <th>Details</th>
                 </tr>
               </thead>
               <tbody>
                 {data.rows.length === 0 && !loading && (
-                  <tr><td colSpan="8" className="empty">No activity recorded yet. Imports, time edits and deletions will appear here.</td></tr>
+                  <tr><td colSpan="9" className="empty">No activity recorded yet. Imports, time edits and deletions will appear here.</td></tr>
                 )}
                 {data.rows.map(r => (
                   <tr key={r.id}>
@@ -113,6 +115,7 @@ function App() {
                     </td>
                     <td><span className={'badge ' + (r.mode || '')}>{MODE_LABEL[r.mode] || r.mode || '—'}</span></td>
                     <td className="num">{r.rowsAdded ? <span className="plus">+{r.rowsAdded.toLocaleString()}</span> : '—'}</td>
+                    <td className="num">{r.rowsModified ? <span className="mod">~{r.rowsModified.toLocaleString()}</span> : '—'}</td>
                     <td className="num">{r.rowsRemoved ? <span className="minus">−{r.rowsRemoved.toLocaleString()}</span> : '—'}</td>
                     <td className="details">{r.details || ''}</td>
                   </tr>

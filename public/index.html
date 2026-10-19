@@ -119,7 +119,15 @@
   th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); }
   th { background: #f0f2f6; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
   tbody tr:hover { background: var(--row-hover); }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  /* "what happened in the last update" markers on the Time column */
+  .prev-time { color: var(--muted); font-weight: 400; margin-right: 6px; }
+  .chg {
+    display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+    font-size: 10px; font-weight: 700; letter-spacing: .04em; vertical-align: middle;
+  }
+  .chg-new { background: #dcfce7; color: #16803c; }
+  .chg-mod { background: #fef3c7; color: #b45309; }
   .code { font-family: Consolas, monospace; font-size: 14px; color: var(--accent); white-space: nowrap; }
   .muted { color: var(--muted); }
   .pager { display: flex; align-items: center; gap: 12px; padding: 12px; justify-content: flex-end; }
@@ -231,6 +239,7 @@ function App() {
   const [vehKey, setVehKey] = useState('');
   const [modYear, setModYear] = useState('');
   const [gsa, setGsa] = useState('');
+  const [change, setChange] = useState(''); // '' | 'any' | 'added' | 'modified' — what happened to the entry in its vehicle's last update
   const [search, setSearch] = useState('');
   const [exactMode, setExactMode] = useState(false); // true right after clicking Search / pressing Enter
   const [page, setPage] = useState(1);
@@ -269,7 +278,7 @@ function App() {
 
   const canEdit = me && (me.role === 'ADMIN' || me.role === 'SUPER_ADMIN');
 
-  useEffect(() => { setPage(1); }, [vehKey, modYear, gsa, q, exactMode]);
+  useEffect(() => { setPage(1); }, [vehKey, modYear, gsa, change, q, exactMode]);
 
   // If the selected year/country no longer matches the selected vehicle, clear the vehicle
   useEffect(() => {
@@ -284,6 +293,7 @@ function App() {
     if (vehKey) params.set('vehKey', vehKey);
     if (modYear) params.set('modYear', modYear);
     if (gsa) params.set('gsa', gsa);
+    if (change) params.set('change', change);
     if (q) params.set('q', q);
     if (exactMode) params.set('exact', 'true');
     fetch('/api/laborops?' + params)
@@ -314,12 +324,13 @@ function App() {
   function clearFilters() {
     setModYear('');
     setGsa('');
+    setChange('');
     setVehKey('');
     setSearch('');
     setExactMode(false);
   }
 
-  const hasFilters = modYear || gsa || vehKey || search.trim();
+  const hasFilters = modYear || gsa || change || vehKey || search.trim();
 
   function exportCsv() {
     setExporting(true);
@@ -327,6 +338,7 @@ function App() {
     if (vehKey) params.set('vehKey', vehKey);
     if (modYear) params.set('modYear', modYear);
     if (gsa) params.set('gsa', gsa);
+    if (change) params.set('change', change);
     if (q) params.set('q', q);
     if (exactMode) params.set('exact', 'true');
     const url = '/api/laborops/export' + (params.toString() ? '?' + params : '');
@@ -510,6 +522,12 @@ function App() {
             <option key={m} value={m}>{countryName[m] || m}</option>
           ))}
         </select>
+        <select className="narrow" value={change} onChange={e => setChange(e.target.value)} title="What happened to the entry in its vehicle's most recent update">
+          <option value="">All entries</option>
+          <option value="any">Changed in last update</option>
+          <option value="added">New in last update</option>
+          <option value="modified">Time modified in last update</option>
+        </select>
         <select value={vehKey} onChange={e => setVehKey(e.target.value)}>
           <option value="">
             All vehicles{modYear ? ` · ${modYear}` : ''}{gsa ? ` · ${countryName[gsa] || gsa}` : ''}
@@ -562,7 +580,14 @@ function App() {
                   <td>{r.operationDesc}</td>
                   <td>{r.categoryCode}</td>
                   <td className="muted">{r.qualDesc || r.catDesc || '—'}</td>
-                  <td className="num">{r.totTime != null ? r.totTime.toFixed(1) : '—'}</td>
+                  <td className="num" title={r.changedAt ? `${r.changeType === 'added' ? 'Added' : 'Time modified'} ${formatWhen(r.changedAt)}` : undefined}>
+                    {r.changeType === 'modified' && r.prevTotTime != null && (
+                      <s className="prev-time">{Number(r.prevTotTime).toFixed(1)}</s>
+                    )}
+                    {r.totTime != null ? r.totTime.toFixed(1) : '—'}
+                    {r.changeType === 'added' && <span className="chg chg-new">NEW</span>}
+                    {r.changeType === 'modified' && <span className="chg chg-mod">MODIFIED</span>}
+                  </td>
                   <td className="muted">{r.secNo} {r.secDesc}</td>
                   <td>{r.vehDesc}</td>
                   <td>{r.modYear || '—'}</td>

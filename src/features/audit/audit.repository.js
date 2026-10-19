@@ -4,15 +4,15 @@
  * the one dialect-specific query (same LIMIT/OFFSET vs OFFSET/FETCH split
  * as laborops.repository.js).
  */
-const COLUMNS = 'id, at, userId, userEmail, action, mode, fileName, vehKey, vehDesc, rowsAdded, rowsRemoved, details';
+const COLUMNS = 'id, at, userId, userEmail, action, mode, fileName, vehKey, vehDesc, rowsAdded, rowsModified, rowsRemoved, details';
 
 function makeAuditRepository(db) {
   return {
     insert: (e) => db.insert(
-      `INSERT INTO audit_log (at, userId, userEmail, action, mode, fileName, vehKey, vehDesc, rowsAdded, rowsRemoved, details)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO audit_log (at, userId, userEmail, action, mode, fileName, vehKey, vehDesc, rowsAdded, rowsModified, rowsRemoved, details)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
       [e.at, e.userId ?? null, e.userEmail ?? null, e.action, e.mode ?? null, e.fileName ?? null,
-       e.vehKey ?? null, e.vehDesc ?? null, e.rowsAdded ?? 0, e.rowsRemoved ?? 0, e.details ?? null]
+       e.vehKey ?? null, e.vehDesc ?? null, e.rowsAdded ?? 0, e.rowsModified ?? 0, e.rowsRemoved ?? 0, e.details ?? null]
     ),
 
     count: async () => (await db.get('SELECT COUNT(*) AS n FROM audit_log', [])).n,

@@ -111,7 +111,10 @@ async function ensureSchema(db) {
       categoryCode    NVARCHAR(20),
       catDesc         NVARCHAR(255),
       qualDesc        NVARCHAR(255),
-      assessedTime    NVARCHAR(20)
+      assessedTime    NVARCHAR(20),
+      changeType      NVARCHAR(10) NULL,
+      prevTotTime     FLOAT NULL,
+      changedAt       NVARCHAR(40) NULL
     );
   `, []);
 

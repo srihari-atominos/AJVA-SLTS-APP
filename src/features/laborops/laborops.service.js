@@ -14,6 +14,7 @@
  * comment in the vehicles feature for the same pattern.
  */
 const { makeLaborOpsRepository } = require('./laborops.repository');
+const { diffEntries } = require('./changes');
 const config = require('../../config');
 
 function httpError(message, status) {
@@ -27,6 +28,7 @@ function parseFilters(query) {
     gsa: query.gsa || null,
     q: query.q || null,
     exact: query.exact === 'true' || query.exact === '1',
+    change: ['added', 'modified', 'any'].includes(query.change) ? query.change : null,
   };
 }
 
@@ -35,6 +37,7 @@ const EXPORT_COLUMNS = [
   'laborDescCode', 'fullLaborOpCode', 'operationDesc', 'categoryCode',
   'catDesc', 'qualDesc', 'totTime', 'secNo', 'secDesc',
   'effectiveDate', 'status', 'assessedTime', 'tsid',
+  'changeType', 'prevTotTime', 'changedAt',
 ];
 
 function csvEscape(v) {
@@ -55,6 +58,18 @@ function makeLaborOpsService(db, auditService) {
   async function insertMany(rows, dbCtx) {
     const targetRepo = dbCtx ? makeLaborOpsRepository(dbCtx) : repo;
     for (const row of rows) await targetRepo.insertOne(row);
+  }
+
+  /**
+   * Used by vehicles.service.js BEFORE it replaces a vehicle's rows: marks
+   * each parsed row as added / modified / unchanged relative to what the
+   * vehicle has in the database right now, and returns the counts. For a
+   * vehicle that doesn't exist yet every row is 'added'.
+   */
+  async function markChanges(vehKey, rows, dbCtx) {
+    const targetRepo = dbCtx ? makeLaborOpsRepository(dbCtx) : repo;
+    const existing = await targetRepo.listEntriesForVehicle(vehKey);
+    return diffEntries(existing, rows, new Date().toISOString());
   }
 
   async function listPage(query) {
@@ -92,10 +107,14 @@ function makeLaborOpsService(db, auditService) {
     }
     const before = await repo.findFullById(id);
     if (!before) throw httpError('Labor-time row not found', 404);
-    await repo.updateTotTime(id, n);
+    // Keep the ORIGINAL value if the row was already marked modified in
+    // this update cycle, so "was 0.5, now 0.9" survives a second edit
+    // rather than collapsing to the intermediate value.
+    const prev = before.changeType === 'modified' && before.prevTotTime != null ? before.prevTotTime : before.totTime;
+    await repo.updateTotTime(id, n, prev, new Date().toISOString());
     if (auditService) {
       await auditService.record({
-        action: 'edit', mode: 'edited',
+        action: 'edit', mode: 'edited', rowsModified: 1,
         vehKey: before.vehKey, vehDesc: before.vehDesc,
         details: `${before.fullLaborOpCode} (${before.operationDesc}): time ${before.totTime} -> ${n} hrs`,
       }, user);
@@ -103,7 +122,7 @@ function makeLaborOpsService(db, auditService) {
     return repo.findFullById(id);
   }
 
-  return { getCount, insertMany, listPage, exportCsvRows, lookup, editTotTime };
+  return { getCount, insertMany, markChanges, listPage, exportCsvRows, lookup, editTotTime };
 }
 
 module.exports = { makeLaborOpsService };

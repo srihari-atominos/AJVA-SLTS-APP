@@ -8,10 +8,21 @@
  * One row per data-changing event:
  *   action  'import' | 'edit' | 'delete'
  *   mode    import: 'added' | 'updated' | 'failed'; edit: 'edited'; delete: 'deleted'
- *   rowsAdded / rowsRemoved  labor-time rows written / discarded by the event
+ *   rowsAdded / rowsModified / rowsRemoved  entries new / time changed / gone (see laborops/changes.js)
  *   details  free text (error message, "totTime 0.5 -> 0.7", ...)
  */
+const { addMissingColumns } = require('../vehicles/dataSchema');
+
+const ADDED_COLUMNS = [
+  ['audit_log', 'rowsModified', 'INTEGER NOT NULL DEFAULT 0', 'INT NOT NULL CONSTRAINT DF_audit_rowsModified DEFAULT 0'],
+];
+
 async function ensureAuditSchema(db) {
+  await createAuditTable(db);
+  await addMissingColumns(db, ADDED_COLUMNS);
+}
+
+async function createAuditTable(db) {
   if (db.driver === 'mssql') {
     await db.run(`
       IF OBJECT_ID('audit_log', 'U') IS NULL
@@ -26,6 +37,7 @@ async function ensureAuditSchema(db) {
         vehKey      NVARCHAR(100) NULL,
         vehDesc     NVARCHAR(255) NULL,
         rowsAdded   INT NOT NULL CONSTRAINT DF_audit_rowsAdded DEFAULT 0,
+        rowsModified INT NOT NULL CONSTRAINT DF_audit_rowsModified DEFAULT 0,
         rowsRemoved INT NOT NULL CONSTRAINT DF_audit_rowsRemoved DEFAULT 0,
         details     NVARCHAR(MAX) NULL
       );
@@ -49,6 +61,7 @@ async function ensureAuditSchema(db) {
       vehKey      TEXT,
       vehDesc     TEXT,
       rowsAdded   INTEGER NOT NULL DEFAULT 0,
+      rowsModified INTEGER NOT NULL DEFAULT 0,
       rowsRemoved INTEGER NOT NULL DEFAULT 0,
       details     TEXT
     );
