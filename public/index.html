@@ -15,7 +15,7 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
-  .wrap { width: 100%; box-sizing: border-box; margin: 0; padding: 24px 24px; }
+  .wrap { width: 100%; box-sizing: border-box; margin: 0; padding: 24px 24px; overflow-x: clip; }
   .header-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   h1 { font-size: 22px; margin: 0; }
   .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -140,7 +140,9 @@
     position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; min-width: 240px; max-height: 420px; overflow-y: auto;
     background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 8px 0;
     box-shadow: 0 10px 30px rgba(0,0,0,.12);
+    max-width: calc(100vw - 32px);
   }
+  .cols-menu.align-right { left: auto; right: 0; }
   .cols-menu-head {
     display: flex; align-items: center; gap: 6px; padding: 4px 12px 8px; margin-bottom: 4px;
     border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
@@ -321,7 +323,20 @@ function App() {
   const [me, setMe] = useState(null); // { id, email, name, role } or null while loading
   const [visibleCols, setVisibleCols] = useState(loadCols); // ordered by COLUMN_DEFS, not by selection order
   const [colsOpen, setColsOpen] = useState(false);
+  const [colsAlignRight, setColsAlignRight] = useState(false); // flip the menu when it would run off the right edge
   const colsRef = useRef(null);
+  const colsMenuRef = useRef(null);
+  useEffect(() => {
+    if (!colsOpen || !colsMenuRef.current) return;
+    const place = () => {
+      const btn = colsRef.current.getBoundingClientRect();
+      const menuWidth = colsMenuRef.current.offsetWidth;
+      setColsAlignRight(btn.left + menuWidth > window.innerWidth - 16);
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [colsOpen]);
   function setColVisible(key, on) {
     const next = COLUMN_DEFS.map((c) => c.key).filter((k) => (k === key ? on : visibleCols.includes(k)));
     if (next.length === 0) return; // keep at least one column
@@ -670,7 +685,7 @@ function App() {
             Columns ({shownDefs.length}/{COLUMN_DEFS.length})
           </button>
           {colsOpen && (
-            <div className="cols-menu">
+            <div className={'cols-menu' + (colsAlignRight ? ' align-right' : '')} ref={colsMenuRef}>
               <div className="cols-menu-head">
                 <span>Show columns</span>
                 <button onClick={() => setAllCols(COLUMN_DEFS.map(c => c.key))}>All</button>
