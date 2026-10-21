@@ -128,6 +128,32 @@
   }
   .chg-new { background: #dcfce7; color: #16803c; }
   .chg-mod { background: #fef3c7; color: #b45309; }
+  /* Column chooser */
+  .table-scroll { overflow-x: auto; }
+  .cols-picker { position: relative; }
+  button.cols-btn {
+    padding: 9px 16px; border: 1px solid var(--border); background: var(--card); color: var(--text);
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  button.cols-btn:hover { background: var(--row-hover); }
+  .cols-menu {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; min-width: 240px; max-height: 420px; overflow-y: auto;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 8px 0;
+    box-shadow: 0 10px 30px rgba(0,0,0,.12);
+  }
+  .cols-menu-head {
+    display: flex; align-items: center; gap: 6px; padding: 4px 12px 8px; margin-bottom: 4px;
+    border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  }
+  .cols-menu-head span { flex: 1; }
+  .cols-menu-head button {
+    padding: 3px 9px; border: 1px solid var(--border); background: #fff; border-radius: 999px;
+    font-size: 11.5px; font-weight: 600; cursor: pointer; text-transform: none; letter-spacing: 0;
+  }
+  .cols-menu-head button:hover { background: var(--row-hover); }
+  .cols-item { display: flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: 13.5px; cursor: pointer; user-select: none; }
+  .cols-item:hover { background: var(--row-hover); }
+  .cols-item input { margin: 0; cursor: pointer; }
   /* "New items" / "Time modified" checkboxes in the filter bar */
   .change-toggles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; }
   .change-toggles .toggle {
@@ -239,8 +265,76 @@ const LINK_MSG = {
   domain: { type: 'err', text: 'Your Windows domain isn’t allowed to link here.' },
 };
 
+// Every column the table can show — the same set the CSV export carries —
+// in display order. `def: true` = shown until the user changes the choice
+// (remembered per browser under COLS_KEY). `render` gets the row and a few
+// helpers from App (for the Time column's NEW/MODIFIED ribbon).
+const dash = (v) => (v == null || v === '' ? '—' : v);
+const COLUMN_DEFS = [
+  { key: 'fullLaborOpCode', label: 'Full Op Code', def: true, cls: 'code' },
+  { key: 'laborDescCode', label: 'Labor Desc Code', cls: 'code' },
+  { key: 'baseLaborOp', label: 'Base Labor Op', cls: 'code' },
+  { key: 'combo', label: 'Combo', cls: 'code' },
+  { key: 'complexCode', label: 'Complexity' },
+  { key: 'operationDesc', label: 'Operation', def: true },
+  { key: 'operType', label: 'Op Type' },
+  { key: 'categoryCode', label: 'Category', def: true },
+  { key: 'catDesc', label: 'Category Desc', cls: 'muted' },
+  { key: 'qualDesc', label: 'Qualifier', def: true, cls: 'muted', render: (r) => dash(r.qualDesc || r.catDesc) },
+  { key: 'totTime', label: 'Time (hrs)', def: true, cls: 'num', align: 'right', render: (r, h) => (
+      <React.Fragment>
+        {h.isFresh(r) && r.changeType === 'modified' && r.prevTotTime != null && (
+          <s className="prev-time">{Number(r.prevTotTime).toFixed(1)}</s>
+        )}
+        {r.totTime != null ? r.totTime.toFixed(1) : '—'}
+        {h.isFresh(r) && r.changeType === 'added' && <span className="chg chg-new">NEW</span>}
+        {h.isFresh(r) && r.changeType === 'modified' && <span className="chg chg-mod">MODIFIED</span>}
+      </React.Fragment>
+    ),
+    title: (r, h) => (h.isFresh(r) ? `${r.changeType === 'added' ? 'Added' : 'Time modified'} ${formatWhen(r.changedAt)}` : undefined) },
+  { key: 'assessedTime', label: 'Assessed Time' },
+  { key: 'section', label: 'Section', def: true, cls: 'muted', render: (r) => `${r.secNo || ''} ${r.secDesc || ''}`.trim() || '—' },
+  { key: 'secNo', label: 'Section No' },
+  { key: 'vehDesc', label: 'Vehicle', def: true },
+  { key: 'modYear', label: 'Year', def: true },
+  { key: 'gsa', label: 'Country', render: (r) => r.gsa },
+  { key: 'source', label: 'Source' },
+  { key: 'brandCode', label: 'Brand' },
+  { key: 'vehKey', label: 'Vehicle Key', cls: 'code' },
+  { key: 'effectiveDate', label: 'Effective Date' },
+  { key: 'status', label: 'Status' },
+  { key: 'tsid', label: 'TSID', cls: 'code' },
+  { key: 'changedAt', label: 'Changed On', cls: 'muted', render: (r, h) => (h.isFresh(r) ? formatWhen(r.changedAt) : '—') },
+];
+const DEFAULT_COLS = COLUMN_DEFS.filter((c) => c.def).map((c) => c.key);
+const COLS_KEY = 'slts.columns';
+function loadCols() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COLS_KEY));
+    if (Array.isArray(saved) && saved.length) return saved.filter((k) => COLUMN_DEFS.some((c) => c.key === k));
+  } catch (e) { /* ignore */ }
+  return DEFAULT_COLS;
+}
+function saveCols(keys) { try { localStorage.setItem(COLS_KEY, JSON.stringify(keys)); } catch (e) { /* ignore */ } }
+
 function App() {
   const [me, setMe] = useState(null); // { id, email, name, role } or null while loading
+  const [visibleCols, setVisibleCols] = useState(loadCols); // ordered by COLUMN_DEFS, not by selection order
+  const [colsOpen, setColsOpen] = useState(false);
+  const colsRef = useRef(null);
+  function setColVisible(key, on) {
+    const next = COLUMN_DEFS.map((c) => c.key).filter((k) => (k === key ? on : visibleCols.includes(k)));
+    if (next.length === 0) return; // keep at least one column
+    setVisibleCols(next); saveCols(next);
+  }
+  function setAllCols(keys) { setVisibleCols(keys); saveCols(keys); }
+  useEffect(() => {
+    if (!colsOpen) return;
+    const onDoc = (e) => { if (colsRef.current && !colsRef.current.contains(e.target)) setColsOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [colsOpen]);
+  const shownDefs = COLUMN_DEFS.filter((c) => visibleCols.includes(c.key));
   const [linkMsg, setLinkMsg] = useState(() => LINK_MSG[new URLSearchParams(location.search).get('link')] || null);
   const [maxLaborHours, setMaxLaborHours] = useState(999); // overwritten from /auth/public-config on load
   const [stats, setStats] = useState(null);
@@ -571,6 +665,26 @@ function App() {
         <button className="clear" onClick={clearFilters} disabled={!hasFilters}>
           Clear
         </button>
+        <div className="cols-picker" ref={colsRef}>
+          <button className="cols-btn" onClick={() => setColsOpen(o => !o)} title="Choose which columns the table shows">
+            Columns ({shownDefs.length}/{COLUMN_DEFS.length})
+          </button>
+          {colsOpen && (
+            <div className="cols-menu">
+              <div className="cols-menu-head">
+                <span>Show columns</span>
+                <button onClick={() => setAllCols(COLUMN_DEFS.map(c => c.key))}>All</button>
+                <button onClick={() => setAllCols(DEFAULT_COLS)}>Default</button>
+              </div>
+              {COLUMN_DEFS.map((c) => (
+                <label key={c.key} className="cols-item">
+                  <input type="checkbox" checked={visibleCols.includes(c.key)} onChange={e => setColVisible(c.key, e.target.checked)} />
+                  {c.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="change-toggles" title={`Entries added or changed in the last ${changeHighlightDays} days`}>
           <label className={'toggle' + (showNew ? ' on' : '')}>
             <input type="checkbox" checked={showNew} onChange={e => setShowNew(e.target.checked)} />
@@ -586,38 +700,24 @@ function App() {
 
       <div className="card">
         <div className="tablewrap">
+          <div className="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Full Op Code</th>
-                <th>Operation</th>
-                <th>Category</th>
-                <th>Qualifier</th>
-                <th style={{textAlign:'right'}}>Time (hrs)</th>
-                <th>Section</th>
-                <th>Vehicle</th>
-                <th>Year</th>
+                {shownDefs.map((c) => (
+                  <th key={c.key} style={c.align ? { textAlign: c.align } : undefined}>{c.label}</th>
+                ))}
                 {canEdit && <th style={{textAlign:'right'}}>Actions</th>}
               </tr>
             </thead>
             <tbody>
               {data.rows.map((r) => (
                 <tr key={r.id}>
-                  <td className="code">{r.fullLaborOpCode}</td>
-                  <td>{r.operationDesc}</td>
-                  <td>{r.categoryCode}</td>
-                  <td className="muted">{r.qualDesc || r.catDesc || '—'}</td>
-                  <td className="num" title={isFresh(r) ? `${r.changeType === 'added' ? 'Added' : 'Time modified'} ${formatWhen(r.changedAt)}` : undefined}>
-                    {isFresh(r) && r.changeType === 'modified' && r.prevTotTime != null && (
-                      <s className="prev-time">{Number(r.prevTotTime).toFixed(1)}</s>
-                    )}
-                    {r.totTime != null ? r.totTime.toFixed(1) : '—'}
-                    {isFresh(r) && r.changeType === 'added' && <span className="chg chg-new">NEW</span>}
-                    {isFresh(r) && r.changeType === 'modified' && <span className="chg chg-mod">MODIFIED</span>}
-                  </td>
-                  <td className="muted">{r.secNo} {r.secDesc}</td>
-                  <td>{r.vehDesc}</td>
-                  <td>{r.modYear || '—'}</td>
+                  {shownDefs.map((c) => (
+                    <td key={c.key} className={c.cls} title={c.title ? c.title(r, { isFresh }) : undefined}>
+                      {c.render ? c.render(r, { isFresh }) : dash(r[c.key])}
+                    </td>
+                  ))}
                   {canEdit && (
                     <td style={{textAlign:'right'}}>
                       <button className="row-edit" onClick={() => openEdit(r)}>Edit</button>
@@ -627,6 +727,7 @@ function App() {
               ))}
             </tbody>
           </table>
+          </div>
           {!loading && data.rows.length === 0 && <div className="empty">No matching labor operations.</div>}
           {loading && <div className="empty">Loading…</div>}
         </div>
