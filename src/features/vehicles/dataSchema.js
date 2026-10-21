@@ -200,6 +200,35 @@ async function addMissingColumns(db, columns = ADDED_COLUMNS) {
   }
 }
 
+/**
+ * Which of `columns` are still missing — the check the server runs after
+ * the upgrade step so a schema the code cannot work with is reported in
+ * plain words at startup instead of as "Invalid column name" on the first
+ * upload. Returns [{ table, column }].
+ */
+async function findMissingColumns(db, columns = ADDED_COLUMNS) {
+  const missing = [];
+  for (const [table, column] of columns) {
+    let present;
+    if (db.driver === 'mssql') {
+      const row = await db.get(`SELECT COL_LENGTH('${table}', '${column}') AS len`, []);
+      present = row && row.len != null;
+    } else {
+      present = db.raw.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+    }
+    if (!present) missing.push({ table, column });
+  }
+  return missing;
+}
+
+/** The hand-run equivalent of addMissingColumns, for a DBA (see sql/upgrade-schema.sql). */
+function upgradeSqlFor(missing) {
+  return missing.map(({ table, column }) => {
+    const def = ADDED_COLUMNS.find((c) => c[0] === table && c[1] === column);
+    return def ? `ALTER TABLE ${table} ADD ${column} ${def[3]};` : `-- ${table}.${column}`;
+  }).join('\n');
+}
+
 /** Create any missing warranty data tables/indexes/columns. Safe to call on every start. */
 async function ensureWarrantySchema(db) {
   if (db.driver === 'mssql') {
@@ -210,4 +239,4 @@ async function ensureWarrantySchema(db) {
   await addMissingColumns(db);
 }
 
-module.exports = { ensureWarrantySchema, addMissingColumns };
+module.exports = { ensureWarrantySchema, addMissingColumns, findMissingColumns, upgradeSqlFor, ADDED_COLUMNS };

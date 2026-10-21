@@ -250,7 +250,7 @@ Everything else happens automatically at startup, in this order (`src/server.js`
 
 **No data is loaded at startup** — the app and its Docker image ship without the XML extracts or any converted copy of them, which keeps the image small. Load the data through the running app instead: sign in as Admin/Super Admin and upload the GSLTS XML files (`POST /api/upload`, up to `UPLOAD_MAX_FILES` per request, `UPLOAD_MAX_FILE_MB` each). Each file becomes one vehicle plus its labor ops; re-uploading a file replaces that vehicle's rows.
 
-`DB_AUTO_SCHEMA=false` opts out of step 2. The target *database* must exist beforehand, and the login needs CREATE TABLE/INDEX on it for the first start.
+`DB_AUTO_SCHEMA=false` opts out of table *creation* in step 2 — columns that later releases added to existing tables are still applied (`ALTER TABLE … ADD`, guarded, idempotent), because the code cannot run against the old shape. The target *database* must exist beforehand, and the login needs CREATE TABLE/INDEX on it for the first start and ALTER for upgrades. If the login may not ALTER, run **`sql/upgrade-schema.sql`** in SSMS after deploying a new build; the server logs `[schema] MISSING COLUMNS: …` at startup (with the exact statements) whenever something is still missing, and imports fail with `Invalid column name` until it is fixed.
 
 `npm run import:mssql` remains as a **bulk rebuild-from-scratch** path for an operator with the XML folders on hand: it DROPS and recreates the five warranty tables from `data/*.ndjson` (produced by `npm run convert`). Never point it at a database you don't intend to wipe.
 

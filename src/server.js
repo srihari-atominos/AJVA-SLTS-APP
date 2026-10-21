@@ -9,7 +9,7 @@ const config = require('./config');
 const { createDb } = require('./config/db');
 const { createApp } = require('./app');
 const { seedSuperAdminFromEnv } = require('./features/users/superAdmin');
-const { ensureWarrantySchema } = require('./features/vehicles/dataSchema');
+const { ensureWarrantySchema, addMissingColumns, findMissingColumns, upgradeSqlFor } = require('./features/vehicles/dataSchema');
 const { ensureAuditSchema } = require('./features/audit/schema');
 
 // Defense in depth: every route handler is already wrapped in asyncHandler
@@ -28,9 +28,32 @@ process.on('unhandledRejection', (err) => {
   // database that already has them, so this is safe on every restart. Data
   // is loaded afterwards through the app's XML upload (POST /api/upload),
   // or by the import scripts — never automatically at startup.
-  if (config.db.autoSchema) await ensureWarrantySchema(db);
-  else console.log('[schema] DB_AUTO_SCHEMA=false — not creating warranty data tables automatically.');
+  if (config.db.autoSchema) {
+    await ensureWarrantySchema(db);
+  } else {
+    // Opting out of table CREATION must not leave the code running against
+    // a table shape it can't use: columns added by later releases are
+    // still applied to the existing tables (ALTER only, never CREATE).
+    console.log('[schema] DB_AUTO_SCHEMA=false — not creating warranty data tables automatically.');
+    try {
+      await addMissingColumns(db);
+    } catch (err) {
+      console.error(`[schema] Could not add columns required by this release: ${err.message}`);
+    }
+  }
   await ensureAuditSchema(db); // audit_log: tiny, app-owned, always created (like users/sessions)
+
+  // Verify, and say exactly what to do if the upgrade didn't happen (e.g.
+  // the login lacks ALTER rights) — otherwise the first upload would fail
+  // with a bare "Invalid column name" in the UI.
+  const missing = await findMissingColumns(db);
+  if (missing.length) {
+    console.error(
+      `[schema] MISSING COLUMNS: ${missing.map((m) => `${m.table}.${m.column}`).join(', ')}. ` +
+      `Imports and change tracking will fail until they exist. Run sql/upgrade-schema.sql against the database, or:\n` +
+      upgradeSqlFor(missing)
+    );
+  }
 
   await seedSuperAdminFromEnv(db); // no-op unless SUPER_ADMIN_EMAIL/PASSWORD are set in .env
   const app = createApp(db);
