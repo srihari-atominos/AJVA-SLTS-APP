@@ -35,16 +35,18 @@ test('EU: model year + open production window', () => {
   assert.equal(r.prodEnd, null);
 });
 
-test('EU: fractional model years are kept verbatim', () => {
-  assert.equal(eu('Ka 2016.5 (04/2016-)').modYear, '2016.5');
-  assert.equal(eu('Fiesta 2002.25 (11/2001-)').modYear, '2002.25');
-  assert.equal(eu('Transit Custom/Tourneo Custom 2023.75 (06/2023-)').modYear, '2023.75');
+test('EU: fractional model-year labels resolve to the whole year', () => {
+  assert.equal(eu('Ka 2016.5 (04/2016-)').modYear, '2016');
+  assert.equal(eu('Fiesta 2002.25 (11/2001-)').modYear, '2002');
+  assert.equal(eu('Transit Custom/Tourneo Custom 2023.75 (06/2023-)').modYear, '2023');
+  // ...and the fraction is not read as a second number or a year of its own
+  assert.equal(eu('Mondeo 2007.5 (02/2007-)').prodStart, '2007-02');
 });
 
 test('EU: dot-separated window and no space before "("', () => {
   assert.deepEqual(eu('Fiesta 2017 (05.2017-)').prodStart, '2017-05');
   const r = eu('Transit 2000.5 RWD(01/2000-05/2006)');
-  assert.equal(r.modYear, '2000.5');
+  assert.equal(r.modYear, '2000');
   assert.equal(r.prodStart, '2000-01');
   assert.equal(r.prodEnd, '2006-05');
 });

@@ -12,7 +12,7 @@
  * production window appear is the free-text VEHDESC, e.g.
  *   "Fiesta 1989 (03/1989-09/1996)"   model year + closed window
  *   "Explorer 2020 (03/2019-)"        model year + open window
- *   "Ka 2016.5 (04/2016-)"            fractional model year (Ford's own convention)
+ *   "Ka 2016.5 (04/2016-)"            fractional model-year label (Ford's own convention) -> year 2016
  *   "Windstar (10/1994-07/2000)"      window only -> year falls back to window start
  *   "Mustang 2024"                    year only
  *   "Bronco"                          neither -> year left blank, warning emitted
@@ -25,10 +25,13 @@
  * so both always agree. Pure function, no I/O — see test/vehicleMeta.test.js.
  */
 
-// First 4-digit year (optionally fractional: 2002.25, 2016.5) in the text
-// BEFORE the production window — so "Windstar (10/1994-...)" doesn't read
-// 1994 as the model year.
-const MODEL_YEAR_RE = /\b((?:19|20)\d{2})(?:\.(\d{1,2}))?\b/;
+// First 4-digit year in the text BEFORE the production window — so
+// "Windstar (10/1994-...)" doesn't read 1994 as the model year. Ford's
+// fractional labels (2002.25, 2016.5, 2023.75) are mid-year refreshes of
+// that model year: the fraction is matched so it isn't mistaken for a
+// separate number, but only the whole year is stored — that is what the
+// year filter groups by, and the full label stays visible in VEHDESC.
+const MODEL_YEAR_RE = /\b((?:19|20)\d{2})(?:\.\d{1,2})?\b/;
 
 // "(MM/YYYY-MM/YYYY)" or "(MM/YYYY-)" — some files use "." instead of "/"
 // (e.g. "(05.2017-)") and some have no space before the "(".
@@ -72,7 +75,7 @@ function deriveVehicleMeta(raw) {
     const head = w ? desc.slice(0, w.index) : desc;
     const y = head.match(MODEL_YEAR_RE);
     if (y) {
-      modYear = y[2] ? `${y[1]}.${y[2]}` : y[1];
+      modYear = y[1];
     } else if (prodStart) {
       modYear = prodStart.slice(0, 4);
       warnings.push(`modYear: no model year in "${desc}" — using production start year ${modYear}`);

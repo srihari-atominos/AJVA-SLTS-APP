@@ -40,7 +40,11 @@ async function main() {
   const changes = [];
   const warnings = [];
   for (const r of rows) {
-    const d = deriveVehicleMeta({ source: r.source, gsa: r.gsa, modYear: r.modYear, vehDesc: r.vehDesc });
+    // A stored fractional year ("2016.5") came from an earlier version of
+    // the derivation that kept Ford's label verbatim; treat it as unknown so
+    // it is re-derived to the whole year like every new upload does now.
+    const storedYear = /\./.test(String(r.modYear || '')) ? 'ALL' : r.modYear;
+    const d = deriveVehicleMeta({ source: r.source, gsa: r.gsa, modYear: storedYear, vehDesc: r.vehDesc });
     for (const w of d.warnings) warnings.push(`${r.vehKey}: ${w}`);
     const vehicleChanged = !same(d.gsa, r.gsa) || !same(d.modYear, r.modYear)
       || !same(d.prodStart, r.prodStart) || !same(d.prodEnd, r.prodEnd);

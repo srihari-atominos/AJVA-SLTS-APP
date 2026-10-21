@@ -126,7 +126,7 @@ The China (`IM`/`CHN`) and US (`NA`/`USA`) extracts are published per market and
 | Field | Rule |
 |---|---|
 | `gsa` (market) | header value if real; else the source region (`EU`) |
-| `modYear` | header value if real; else the first `19xx`/`20xx` (optionally `.25`/`.5`/`.75`) in the description before the window; else the window's start year (warning); else `NULL` (warning) |
+| `modYear` | header value if real; else the first `19xx`/`20xx` in the description before the window — Ford's fractional labels (`2016.5`, `2023.75`) resolve to the whole year, the full label stays in the description; else the window's start year (warning); else `NULL` (warning) |
 | `prodStart` / `prodEnd` | `YYYY-MM` from the parenthesised `MM/YYYY-MM/YYYY` or `MM/YYYY-` range (`.` separators and missing space tolerated); `NULL` if absent |
 
 The `vehKey` keeps using the **raw** header (`EU-ALL-ALL-03`): it only has to be unique and stable, and changing it would turn a re-upload into a duplicate instead of a replacement. Every fallback is reported as a warning in the upload response (`results[].warnings`) and the server log, so a new extract format is noticed at upload time. `npm test` covers every description shape seen so far — add a case there when Ford invents a new one.
