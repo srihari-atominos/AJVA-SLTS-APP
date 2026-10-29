@@ -24,11 +24,12 @@ function makeAuditRepository(db) {
       return db.all(`SELECT ${COLUMNS} FROM audit_log ORDER BY id DESC LIMIT ? OFFSET ?`, [limit, offset]);
     },
 
-    // Most recent event that actually changed data (a failed import didn't).
+    // Most recent event that actually changed the labor-time data (a failed
+    // import didn't; a VIN mapping change is logged but is not a data change).
     latestChange() {
       const sql = db.driver === 'mssql'
-        ? `SELECT TOP 1 ${COLUMNS} FROM audit_log WHERE mode <> 'failed' ORDER BY id DESC`
-        : `SELECT ${COLUMNS} FROM audit_log WHERE mode <> 'failed' ORDER BY id DESC LIMIT 1`;
+        ? `SELECT TOP 1 ${COLUMNS} FROM audit_log WHERE mode <> 'failed' AND action <> 'vinmap' ORDER BY id DESC`
+        : `SELECT ${COLUMNS} FROM audit_log WHERE mode <> 'failed' AND action <> 'vinmap' ORDER BY id DESC LIMIT 1`;
       return db.get(sql, []);
     },
   };

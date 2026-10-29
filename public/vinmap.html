@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VIN Mappings — SLTS</title>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script src="/sidebar.js"></script>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1a2233; --muted:#6b7486; --accent:#1d4ed8; --border:#e2e5ea; --row-hover:#eef2fb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { width: 100%; margin: 0; padding: 24px 24px; }
+  h1 { font-size: 22px; margin: 0; }
+  .sub { color: var(--muted); font-size: 14px; margin: 6px 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 18px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+  .info-note { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 18px; line-height: 1.55; }
+  .info-note code { font-family: Consolas, monospace; }
+  .form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+  input[type=text], select, textarea { padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 13.5px; background: #fff; color: var(--text); }
+  input.code { font-family: Consolas, monospace; text-transform: uppercase; letter-spacing: .08em; width: 110px; }
+  input.note { min-width: 260px; }
+  textarea { width: 100%; min-height: 120px; font-family: Consolas, monospace; font-size: 13px; }
+  button.primary { padding: 9px 16px; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 8px; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  button.primary:hover:not(:disabled) { background: #1a3fc4; }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  button.small { padding: 5px 11px; border: 1px solid var(--border); background: #fff; color: var(--text); border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  button.small:hover:not(:disabled) { background: var(--row-hover); }
+  button.danger { color: #b91c1c; border-color: #fecaca; }
+  button.danger:hover:not(:disabled) { background: #fef2f2; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: #f0f2f6; font-weight: 600; white-space: nowrap; }
+  td.code { font-family: Consolas, monospace; color: var(--accent); font-weight: 600; }
+  .muted { color: var(--muted); }
+  .warn { color: #b45309; font-weight: 600; }
+  .msg { margin: 12px 0 0; padding: 9px 12px; border-radius: 8px; font-size: 13px; }
+  .msg.err { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .msg.ok { background: #f0fdf4; color: #16803c; border: 1px solid #bbf7d0; }
+  .msg ul { margin: 6px 0 0; padding-left: 18px; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+const COUNTRY = { CHN: 'China', USA: 'United States', EU: 'Europe' };
+
+function App() {
+  const [me, setMe] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [form, setForm] = useState({ wmi: '', bodyCode: '', vehKey: '', note: '' });
+  const [csv, setCsv] = useState('');
+
+  function loadAll() {
+    fetch('/auth/me').then(r => r.json()).then(d => setMe(d.user));
+    fetch('/api/vin/map').then(r => r.json()).then(setRows);
+    fetch('/api/vehicles').then(r => r.json()).then(setVehicles);
+  }
+  useEffect(loadAll, []);
+
+  async function logout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    location.href = '/login.html';
+  }
+
+  // One entry per vehicle line + market: a mapping applies to every model year of the line.
+  const lines = vehicles.filter((v, i, a) => a.findIndex(x => x.gsa === v.gsa && x.vehCode === v.vehCode) === i);
+  const codeOnly = (s) => s.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+
+  async function add() {
+    const v = lines.find(x => x.vehKey === form.vehKey);
+    if (!v) return;
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch('/api/vin/map', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wmi: form.wmi, bodyCode: form.bodyCode, gsa: v.gsa, vehCode: v.vehCode, note: form.note }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setMsg({ type: 'err', text: d.error || 'Could not add' }); return; }
+      setMsg({ type: 'ok', text: `Added: body code ${d.mapping.bodyCode}${d.mapping.wmi ? ' (WMI ' + d.mapping.wmi + ')' : ''} → ${v.vehDesc} (${v.gsa})` });
+      setForm({ wmi: '', bodyCode: '', vehKey: '', note: '' });
+      loadAll();
+    } finally { setBusy(false); }
+  }
+
+  async function remove(r) {
+    if (!confirm(`Remove mapping ${r.bodyCode}${r.wmi ? ' (WMI ' + r.wmi + ')' : ''} → ${r.vehCode}?`)) return;
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch('/api/vin/map/' + r.id, { method: 'DELETE' });
+      const d = await res.json();
+      if (!res.ok) { setMsg({ type: 'err', text: d.error || 'Could not remove' }); return; }
+      loadAll();
+    } finally { setBusy(false); }
+  }
+
+  async function importCsv() {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch('/api/vin/map/bulk', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csv }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setMsg({ type: 'err', text: d.error || 'Import failed' }); return; }
+      setMsg({
+        type: d.skipped.length ? 'err' : 'ok',
+        text: `${d.added} mapping(s) added, ${d.ignored} line(s) without a vehicle code ignored, ${d.skipped.length} rejected.`,
+        list: d.skipped.map(s => `line ${s.line}: ${s.error} — ${s.text}`),
+      });
+      if (d.added) { setCsv(''); loadAll(); }
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="layout">
+      <Sidebar active="vinmap" me={me} onLogout={logout} />
+      <div className="main">
+      <div className="wrap">
+        <h1>VIN Mappings</h1>
+        <p className="sub">Which vehicle line a chassis number belongs to, by the code at VIN positions 5–7.</p>
+
+        <div className="info-note">
+          The VIN search on the Labor Times page reads positions 5–7 of the VIN (the <strong>body code</strong>, e.g. <code>K8D</code>) and the
+          model year (position 10). Every US extract and some China extracts publish their own body codes, which are used automatically.
+          Add rows here for everything else — China-built vehicles (WMI <code>LVS</code> Changan Ford, <code>LJX</code> JMC Ford), the EU extracts,
+          Thailand (<code>MNC</code>), South Africa (<code>AFA</code>). A row with a WMI applies only to VINs starting with it and beats any other
+          rule for that code; a row without a WMI applies to any VIN. Admins can also add a row straight from a VIN search that found nothing.
+        </div>
+
+        <div className="card">
+          <h2>Add a mapping</h2>
+          <div className="form-row">
+            <div className="field">
+              <label>WMI (positions 1–3, optional)</label>
+              <input type="text" className="code" placeholder="any" value={form.wmi} onChange={e => setForm({ ...form, wmi: codeOnly(e.target.value) })} />
+            </div>
+            <div className="field">
+              <label>Body code (positions 5–7)</label>
+              <input type="text" className="code" placeholder="K8D" value={form.bodyCode} onChange={e => setForm({ ...form, bodyCode: codeOnly(e.target.value) })} />
+            </div>
+            <div className="field">
+              <label>Vehicle line</label>
+              <select value={form.vehKey} onChange={e => setForm({ ...form, vehKey: e.target.value })}>
+                <option value="">Choose…</option>
+                {lines.map(v => <option key={v.vehKey} value={v.vehKey}>{v.vehDesc} ({COUNTRY[v.gsa] || v.gsa}) · code {v.vehCode}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label>Note (optional)</label>
+              <input type="text" className="note" placeholder="e.g. US-built Explorer sold in China" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
+            </div>
+            <button className="primary" disabled={busy || form.bodyCode.length !== 3 || !form.vehKey} onClick={add}>Add</button>
+          </div>
+          {msg && (
+            <div className={'msg ' + msg.type}>
+              {msg.text}
+              {msg.list && msg.list.length > 0 && <ul>{msg.list.map((l, i) => <li key={i}>{l}</li>)}</ul>}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <h2>Current mappings ({rows.length})</h2>
+          {rows.length === 0 && <div className="empty">No manual mappings yet. US extracts resolve on their own; add rows for the rest.</div>}
+          {rows.length > 0 && (
+            <table>
+              <thead>
+                <tr><th>Body code</th><th>WMI</th><th>Country</th><th>Vehicle code</th><th>Resolves to</th><th>Note</th><th>Added</th><th></th></tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.id}>
+                    <td className="code">{r.bodyCode}</td>
+                    <td className="code">{r.wmi || <span className="muted">any</span>}</td>
+                    <td>{r.gsa ? (COUNTRY[r.gsa] || r.gsa) : <span className="muted">any</span>}</td>
+                    <td className="code">{r.vehCode}</td>
+                    <td>
+                      {r.vehicles.length
+                        ? r.vehicles.map(v => <div key={v.vehKey}>{v.modYear} · {v.vehDesc} ({v.gsa})</div>)
+                        : <span className="warn">no loaded vehicle has this code</span>}
+                    </td>
+                    <td className="muted">{r.note || '—'}</td>
+                    <td className="muted">{formatWhen(r.createdAt)}{r.createdBy ? <div>{r.createdBy}</div> : null}</td>
+                    <td><button className="small danger" disabled={busy} onClick={() => remove(r)}>Remove</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="card">
+          <h2>Import many at once (CSV)</h2>
+          <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+            One mapping per line: <code>wmi,bodyCode,gsa,vehCode,note</code> — WMI and country may be blank. A header line naming the
+            columns is accepted too (so the generated template can be pasted as-is); lines without a vehicle code are ignored.
+          </p>
+          <textarea value={csv} onChange={e => setCsv(e.target.value)} placeholder={'LVS,MBF,CHN,NV,Changan Ford Mondeo\nLJX,U3B,CHN,F4,JMC Ford Territory\n,K8D,CHN,TZ,US-built Explorer'} />
+          <div style={{ marginTop: 8 }}>
+            <button className="primary" disabled={busy || !csv.trim()} onClick={importCsv}>Import</button>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -34,6 +34,7 @@ function makeVehiclesRepository(db) {
       await db.run('DELETE FROM engines WHERE vehicleId = ?', [vehicleId]);
       await db.run('DELETE FROM transmissions WHERE vehicleId = ?', [vehicleId]);
       await db.run('DELETE FROM features WHERE vehicleId = ?', [vehicleId]);
+      await db.run('DELETE FROM vehicle_vin_codes WHERE vehicleId = ?', [vehicleId]);
       await db.run('DELETE FROM vehicles WHERE id = ?', [vehicleId]);
     },
 
@@ -58,6 +59,22 @@ function makeVehiclesRepository(db) {
       [vehicleId, t.code ?? null, t.desc ?? null, t.typeInd ?? null]),
     insertFeature: (vehicleId, f) => db.run('INSERT INTO features VALUES (?,?,?,?)',
       [vehicleId, f.family ?? null, f.feature ?? null, f.desc ?? null]),
+
+    // "VIN positions 5-7 -> vehicle line" rows the extract publishes (see
+    // flatten.js); part of the vehicle aggregate like engines/features.
+    insertVinCode: (vehicleId, v, c) => db.run(
+      `INSERT INTO vehicle_vin_codes
+        (vehicleId, vehKey, gsa, modYear, vehCode, bodyCode, bodyTypeCode, bodyStyleCode, modelCode, modelDesc, bodyStyleDesc, bodyTypeDesc)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [vehicleId, v.vehKey, v.gsa ?? null, v.modYear ?? null, c.vehCode ?? v.vehCode, c.bodyCode,
+       c.bodyTypeCode ?? null, c.bodyStyleCode ?? null, c.modelCode ?? null,
+       c.modelDesc ?? null, c.bodyStyleDesc ?? null, c.bodyTypeDesc ?? null]
+    ),
+    deleteVinCodes: (vehicleId) => db.run('DELETE FROM vehicle_vin_codes WHERE vehicleId = ?', [vehicleId]),
+    listVinCodes: () => db.all(
+      `SELECT vehKey, gsa, modYear, vehCode, bodyCode, bodyTypeCode, bodyStyleCode, modelCode, modelDesc, bodyStyleDesc, bodyTypeDesc
+         FROM vehicle_vin_codes ORDER BY bodyCode, vehKey`, []
+    ),
   };
 }
 

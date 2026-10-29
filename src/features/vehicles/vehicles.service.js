@@ -44,6 +44,11 @@ function makeVehiclesService(db, laborOpsService, auditService) {
     return repo.listForDropdown();
   }
 
+  /** Every "VIN positions 5-7 -> vehicle line" row the loaded extracts publish — for the VIN search. */
+  function listVinCodes() {
+    return repo.listVinCodes();
+  }
+
   async function upsertVehicle(tx, vehicle, laborOps, user, fileName) {
     const txRepo = makeVehiclesRepository(tx);
     const existing = await txRepo.findByVehKey(vehicle.vehKey);
@@ -62,6 +67,7 @@ function makeVehiclesService(db, laborOpsService, auditService) {
     for (const e of vehicle.engines || []) await txRepo.insertEngine(vehicleId, e);
     for (const t of vehicle.transmissions || []) await txRepo.insertTransmission(vehicleId, t);
     for (const f of vehicle.features || []) await txRepo.insertFeature(vehicleId, f);
+    for (const c of vehicle.vinCodes || []) await txRepo.insertVinCode(vehicleId, vehicle, c);
 
     await laborOpsService.insertMany(laborOps, tx);
 
@@ -146,7 +152,7 @@ function makeVehiclesService(db, laborOpsService, auditService) {
     return { vehKey, rowsRemoved };
   }
 
-  return { getStatsCounts, listForDropdown, importUploadedFiles, deleteByVehKey };
+  return { getStatsCounts, listForDropdown, listVinCodes, importUploadedFiles, deleteByVehKey };
 }
 
 module.exports = { makeVehiclesService };

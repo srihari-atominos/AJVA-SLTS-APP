@@ -11,6 +11,7 @@ const { createApp } = require('./app');
 const { seedSuperAdminFromEnv } = require('./features/users/superAdmin');
 const { ensureWarrantySchema, addMissingColumns, findMissingColumns, upgradeSqlFor } = require('./features/vehicles/dataSchema');
 const { ensureAuditSchema } = require('./features/audit/schema');
+const { ensureVinSchema } = require('./features/vin/schema');
 
 // Defense in depth: every route handler is already wrapped in asyncHandler
 // (see its header comment), which is the real fix for a rejected request
@@ -42,6 +43,7 @@ process.on('unhandledRejection', (err) => {
     }
   }
   await ensureAuditSchema(db); // audit_log: tiny, app-owned, always created (like users/sessions)
+  await ensureVinSchema(db);   // vin_map: admin-entered VIN body code -> vehicle line rows, same treatment
 
   // Verify, and say exactly what to do if the upgrade didn't happen (e.g.
   // the login lacks ALTER rights) — otherwise the first upload would fail

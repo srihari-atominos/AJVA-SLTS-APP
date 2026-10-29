@@ -112,10 +112,33 @@ Every change to the labor-time data is written to the `audit_log` table (`src/fe
 
 **Per-entry change markers.** On every upload the parsed rows are diffed against the vehicle's current rows (`src/features/laborops/changes.js`, entry identity = op code + tsid + qualifier + category) and each stored row carries `changeType` (`added` / `modified` / NULL), `prevTotTime` and `changedAt`. A manual edit marks its row `modified` too. The Labor Times table shows a **NEW** or **MODIFIED** ribbon on the Time column, with the previous time struck through next to the current one, and the **New items** / **Time modified** checkboxes in the filter bar narrow the list to those entries (both ticked = either). Markers are **time-based**: they show, and match the checkboxes, for `CHANGE_HIGHLIGHT_DAYS` (default 7) after the change, and survive later uploads — of other files or of the same vehicle — until that window passes; a second change inside the window keeps the original previous time. Data loaded by the import scripts carries no markers.
 
+**Row details popup.** The eye button at the left of every row opens a read-only popup with every stored field of that entry (operation codes, time with its NEW/MODIFIED marker and previous value, category/qualifier, vehicle, section, time study, status). Available to every signed-in user; Admins also get an **Edit time** button there that opens the usual edit popup.
+
 - **Audit Log page** (`/audit.html`, sidebar → Administration): Admin and Super Admin only, newest first, paginated. API: `GET /api/audit?page=&limit=`.
 - **"Last updated on …"** line in the Labor Times header: visible to every signed-in user, taken from the latest successful entry. API: `GET /api/audit/last-updated`.
 
 The table is created automatically at startup and is never touched by the import scripts, so it survives a data rebuild. Pages share one left sidebar (`public/sidebar.js`, plain React with no build step): Labor Times for everyone; Manage Access and Audit Log for Admin and above (the server gates those routes by role regardless of what the sidebar shows).
+
+## VIN (chassis number) search
+
+The Labor Times page has a separate **VIN** box above the filters. It accepts exactly 17 characters (letters and digits, upper-cased as you type); **Find vehicle by VIN** (or Enter) clears every other filter and asks `GET /api/vin/decode?vin=…`. The decoder (`src/features/vin/decode.js`, pure, unit-tested) reads:
+
+| VIN positions | Meaning | Used for |
+|---|---|---|
+| 1–3 | WMI — manufacturer and build country (`1FM` Ford USA SUV, `LVS` Changan Ford, `LJX` JMC Ford, `WF0` Ford of Europe …) | shown; scopes manual mappings |
+| 5–7 | vehicle line / series / body — Ford's **body code**, e.g. `K8D` | the lookup key |
+| 8 | engine code | shown |
+| 9 | check digit (North America only) | a mistyped NA VIN is rejected |
+| 10 | model year (`A`=2010 … `Y`=2030, `1`=2031 …; position 7 disambiguates the 1980–2009 cycle for NA VINs) | picks the extract year |
+
+Body code + model year are matched against two sources, in this order:
+
+1. **Manual mappings** (`vin_map`, admin-maintained on the **VIN Mappings** page, `/vinmap.html`): `wmi (optional) + bodyCode + gsa (optional) → vehCode`. A row with a WMI applies only to VINs starting with it and wins outright; a row without a WMI applies to any VIN. Rows can be added one at a time, pasted as CSV (`wmi,bodyCode,gsa,vehCode,note`, header optional), or straight from a VIN search that found nothing (Admins see a "map this code to…" form in the result). Every add/remove is written to the audit log. API: `GET/POST /api/vin/map`, `POST /api/vin/map/bulk`, `DELETE /api/vin/map/:id` (Admin and above).
+2. **What the extracts publish** (`vehicle_vin_codes`, filled from each file's `MAPVINBODYTOVEHICLELINE` section on upload, replaced with the vehicle on re-upload). Every US extract carries these codes; the China extracts only for lines imported from North America (Mustang, Nautilus, Edge, Continental, Corsair, Territory); the **EU extracts carry none**. For data loaded before this existed, run `npm run backfill:vin-codes` (walks `XML_SOURCE_DIR`; extra folders can be passed after `--`).
+
+The matching vehicles are ranked exact model year first, then nearest year. When exactly one vehicle of that model year matches, it is selected in the Vehicle filter automatically; otherwise the result banner lists the candidates (other years, or several markets) to click. A VIN whose body code nothing knows about shows what was decoded and, for Admins, the inline mapping form.
+
+In the sample claim list (1,555 VINs) about two thirds are China-built (`LVS`/`LJX`), whose body codes the extracts never publish — those lines resolve only through the manual table. `VIN mapping template.csv` (next to the VIN rule documents) lists every WMI + body code pattern seen, with counts, years and an example VIN, ready to be filled in and pasted into the import box.
 
 ## Regional extracts (EU): deriving year and market
 

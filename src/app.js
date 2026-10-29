@@ -15,6 +15,7 @@ const { makeLaborOpsRouter } = require('./features/laborops/laborops.router');
 const { makeVehiclesRouter } = require('./features/vehicles/vehicles.router');
 const { makeStatsRouter } = require('./features/stats/stats.router');
 const { makeAuditRouter } = require('./features/audit/audit.router');
+const { makeVinRouter } = require('./features/vin/vin.router');
 
 function createApp(db) {
   const app = express();
@@ -51,12 +52,15 @@ function createApp(db) {
   const { router: laborOpsRouter, service: laborOpsService } = makeLaborOpsRouter(db, rbac, auditService);
   const { router: vehiclesRouter, service: vehiclesService } = makeVehiclesRouter(db, rbac, laborOpsService, auditService);
   const statsRouter = makeStatsRouter(rbac, vehiclesService, laborOpsService);
+  // VIN search: reads vehicles + the codes their extracts publish through vehiclesService.
+  const { router: vinRouter } = makeVinRouter(db, rbac, vehiclesService, auditService);
 
   app.use(makeUsersRouter(db, rbac));
   app.use(auditRouter);
   app.use(laborOpsRouter);
   app.use(vehiclesRouter);
   app.use(statsRouter);
+  app.use(vinRouter);
 
   // Page-level gates must be registered before express.static, since Express
   // matches routes in registration order and static would otherwise serve
@@ -64,6 +68,7 @@ function createApp(db) {
   app.get('/', requireAuth, (req, res) => res.sendFile(path.join(config.publicDir, 'index.html')));
   app.get('/users.html', requireRole('ADMIN', 'SUPER_ADMIN'), (req, res) => res.sendFile(path.join(config.publicDir, 'users.html')));
   app.get('/audit.html', requireRole('ADMIN', 'SUPER_ADMIN'), (req, res) => res.sendFile(path.join(config.publicDir, 'audit.html')));
+  app.get('/vinmap.html', requireRole('ADMIN', 'SUPER_ADMIN'), (req, res) => res.sendFile(path.join(config.publicDir, 'vinmap.html')));
 
   // Remaining static files: login.html, signup.html are intentionally public.
   app.use(express.static(config.publicDir, { index: false }));

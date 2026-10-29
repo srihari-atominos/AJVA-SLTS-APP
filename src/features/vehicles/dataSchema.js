@@ -66,6 +66,16 @@ const SQLITE_DDL = `
     vehicleId INTEGER NOT NULL REFERENCES vehicles(id),
     family TEXT, feature TEXT, desc TEXT
   );
+  CREATE TABLE IF NOT EXISTS vehicle_vin_codes (
+    vehicleId     INTEGER NOT NULL REFERENCES vehicles(id),
+    vehKey        TEXT NOT NULL,
+    gsa           TEXT,
+    modYear       TEXT,
+    vehCode       TEXT NOT NULL,
+    bodyCode      TEXT NOT NULL,
+    bodyTypeCode  TEXT, bodyStyleCode TEXT, modelCode TEXT,
+    modelDesc     TEXT, bodyStyleDesc TEXT, bodyTypeDesc TEXT
+  );
   CREATE TABLE IF NOT EXISTS laborops (
     id              INTEGER PRIMARY KEY,
     vehKey          TEXT NOT NULL,
@@ -100,6 +110,8 @@ const SQLITE_DDL = `
   CREATE INDEX IF NOT EXISTS idx_ops_labordesc  ON laborops(laborDescCode);
   CREATE INDEX IF NOT EXISTS idx_ops_fullcode   ON laborops(fullLaborOpCode);
   CREATE INDEX IF NOT EXISTS idx_ops_sort       ON laborops(laborDescCode, fullLaborOpCode);
+  CREATE INDEX IF NOT EXISTS idx_vincodes_body  ON vehicle_vin_codes(bodyCode);
+  CREATE INDEX IF NOT EXISTS idx_vincodes_veh   ON vehicle_vin_codes(vehicleId);
 `;
 
 // One statement per entry: MSSQL needs each CREATE guarded by its own IF,
@@ -142,6 +154,17 @@ const MSSQL_DDL = [
      vehicleId INT NOT NULL REFERENCES vehicles(id),
      family NVARCHAR(20), feature NVARCHAR(20), [desc] NVARCHAR(255)
    );`,
+  `IF OBJECT_ID('vehicle_vin_codes', 'U') IS NULL
+   CREATE TABLE vehicle_vin_codes (
+     vehicleId     INT NOT NULL REFERENCES vehicles(id),
+     vehKey        NVARCHAR(100) NOT NULL,
+     gsa           NVARCHAR(20) NULL,
+     modYear       NVARCHAR(10) NULL,
+     vehCode       NVARCHAR(20) NOT NULL,
+     bodyCode      NVARCHAR(3) NOT NULL,
+     bodyTypeCode  NVARCHAR(20) NULL, bodyStyleCode NVARCHAR(20) NULL, modelCode NVARCHAR(20) NULL,
+     modelDesc     NVARCHAR(255) NULL, bodyStyleDesc NVARCHAR(255) NULL, bodyTypeDesc NVARCHAR(255) NULL
+   );`,
   `IF OBJECT_ID('laborops', 'U') IS NULL
    CREATE TABLE laborops (
      id              INT IDENTITY(1,1) PRIMARY KEY,
@@ -182,6 +205,10 @@ const MSSQL_DDL = [
    CREATE INDEX idx_ops_fullcode ON laborops(fullLaborOpCode);`,
   `IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_ops_sort')
    CREATE INDEX idx_ops_sort ON laborops(laborDescCode, fullLaborOpCode);`,
+  `IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_vincodes_body')
+   CREATE INDEX idx_vincodes_body ON vehicle_vin_codes(bodyCode);`,
+  `IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_vincodes_veh')
+   CREATE INDEX idx_vincodes_veh ON vehicle_vin_codes(vehicleId);`,
 ];
 
 /**

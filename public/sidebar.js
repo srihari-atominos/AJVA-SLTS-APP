@@ -82,7 +82,8 @@
         link('/', 'Labor Times', active === 'data'),
         canManage ? h('div', { className: 'sidebar-section' }, 'Administration') : null,
         canManage ? link('/users.html', 'Manage Access', active === 'users') : null,
-        canManage ? link('/audit.html', 'Audit Log', active === 'audit') : null
+        canManage ? link('/audit.html', 'Audit Log', active === 'audit') : null,
+        canManage ? link('/vinmap.html', 'VIN Mappings', active === 'vinmap') : null
       ),
       me ? h('div', { className: 'sidebar-user' },
         h('div', { className: 'sidebar-user-name' }, me.name || me.email),

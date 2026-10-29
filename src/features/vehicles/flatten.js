@@ -12,6 +12,7 @@ const { deriveVehicleMeta } = require('./vehicleMeta');
 const ARRAY_TAGS = new Set([
   'LABOROP', 'TIMESTUDY', 'FULLLABOROP', 'SECTION',
   'ENGDATA', 'TRANSDATA', 'FEATUREDATA', 'MAPVLTOENTOTR', 'TRANSMISIONTYPE',
+  'MAPVINBODYTOVEHICLELINE', 'MODEL', 'BODYSTYLE', 'BODYTYPE',
 ]);
 
 const parser = new XMLParser({
@@ -63,6 +64,28 @@ function flattenExtract(xml, meta = {}) {
     family: f.WERSFAMILY, feature: f.WERSFEATURE, desc: f.WERDESC,
   }));
 
+  // "VIN positions 5-7 -> this vehicle line", as the extract publishes it
+  // (every US file; the China files only for imported lines; EU files never).
+  // Stored in vehicle_vin_codes and used by the VIN search (features/vin).
+  // The model / body descriptions are looked up so the search can say
+  // "Mustang GT, 2-door coupe" rather than just "Mustang".
+  const byCode = (list, codeTag, descTag) => new Map(arr(list).filter((x) => x && typeof x === 'object').map((x) => [x[codeTag], x[descTag] || null]));
+  const modelDesc = byCode(root.MODELS && root.MODELS.MODEL, 'GSLTSMODELCODE', 'MODDESC');
+  const bodyStyleDesc = byCode(root.BODYSTYLES && root.BODYSTYLES.BODYSTYLE, 'GSLTSBODYSTYLECODE', 'BSDESC');
+  const bodyTypeDesc = byCode(root.BODYTYPES && root.BODYTYPES.BODYTYPE, 'GSLTSBODYTYPECODE', 'BTDESC');
+  const vinCodes = arr(root.MAPVINBODYTOVEHICLELINES && root.MAPVINBODYTOVEHICLELINES.MAPVINBODYTOVEHICLELINE)
+    .filter((m) => m && typeof m === 'object' && m.BODYCABCODE)
+    .map((m) => ({
+      bodyCode: String(m.BODYCABCODE).trim().toUpperCase(),
+      vehCode: m.GSLTSVEHCODE || vl.GSLTSVEHCODE,
+      bodyTypeCode: m.GSLTSBODYTYPECODE || null,
+      bodyStyleCode: m.GSLTSBODYSTYLECODE || null,
+      modelCode: m.GSLTSMODELCODE || null,
+      modelDesc: modelDesc.get(m.GSLTSMODELCODE) || null,
+      bodyStyleDesc: bodyStyleDesc.get(m.GSLTSBODYSTYLECODE) || null,
+      bodyTypeDesc: bodyTypeDesc.get(m.GSLTSBODYTYPECODE) || null,
+    }));
+
   const laborOps = [];
   for (const op of arr(root.LABOROPS && root.LABOROPS.LABOROP)) {
     const sections = arr(op.LABOROPSECNOS && op.LABOROPSECNOS.SECTION).map((s) => ({
@@ -107,7 +130,7 @@ function flattenExtract(xml, meta = {}) {
     extractId: ex.EXTRACTID, extractDate: ex.EXTRACTDATE,
     vehCode: vl.GSLTSVEHCODE, vehDesc: vl.VEHDESC,
     abbr: vl.ABBR, brandCode: vl.BRANDCODE,
-    engines, transmissions, features,
+    engines, transmissions, features, vinCodes,
     laborOpCount: arr(root.LABOROPS && root.LABOROPS.LABOROP).length,
     timeEntryCount: laborOps.length,
   };

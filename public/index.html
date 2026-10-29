@@ -123,7 +123,7 @@
   /* "what happened in the last update" markers on the Time column */
   .prev-time { color: var(--muted); font-weight: 400; margin-right: 6px; }
   .chg {
-    display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+    display: inline-block; margin-right: 8px; padding: 1px 7px; border-radius: 999px;
     font-size: 10px; font-weight: 700; letter-spacing: .04em; vertical-align: middle;
   }
   .chg-new { background: #dcfce7; color: #16803c; }
@@ -164,7 +164,7 @@
   }
   .change-toggles .toggle.on { border-color: var(--accent); background: #eef2fb; }
   .change-toggles .toggle input { margin: 0; cursor: pointer; }
-  .change-toggles .toggle .chg { margin-left: 0; }
+  .change-toggles .toggle .chg { margin: 0; }
   .change-toggles .toggle-hint { color: var(--muted); font-size: 12.5px; }
   .code { font-family: Consolas, monospace; font-size: 14px; color: var(--accent); white-space: nowrap; }
   .muted { color: var(--muted); }
@@ -183,6 +183,57 @@
     cursor: pointer; white-space: nowrap;
   }
   button.row-edit:hover { background: var(--accent); color: #fff; }
+
+  /* VIN search: its own row above the filters, 17 characters, clears everything else */
+  .vin-row { align-items: center; margin-bottom: 12px; }
+  .vin-row > label { font-weight: 700; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .vin-box { position: relative; display: flex; flex: 0 1 380px; min-width: 280px; }
+  .vin-box input { flex: 1; min-width: 0; font-family: Consolas, monospace; font-size: 15px; letter-spacing: .12em; padding-right: 56px; }
+  .vin-box .vin-count { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11.5px; color: var(--muted); pointer-events: none; }
+  .vin-box .vin-count.full { color: #16803c; font-weight: 700; }
+  button.vin-find {
+    padding: 9px 16px; border: 1px solid var(--accent); background: var(--accent); color: #fff;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  button.vin-find:hover:not(:disabled) { background: #1a3fc4; }
+  button.vin-find:disabled { opacity: .5; cursor: default; }
+  .vin-hint { font-size: 12.5px; color: var(--muted); }
+  .vin-banner { position: relative; margin: 0 0 16px; padding: 10px 36px 10px 14px; border-radius: 10px; font-size: 13.5px; line-height: 1.5; }
+  .vin-banner.ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: #14532d; }
+  .vin-banner.warn { background: #fffbeb; border: 1px solid #fde68a; color: #78350f; }
+  .vin-banner.err { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+  .vin-banner .banner-close { position: absolute; top: 6px; right: 8px; border: none; background: none; cursor: pointer; font-size: 16px; color: inherit; opacity: .7; padding: 2px 6px; }
+  .vin-banner .banner-close:hover { opacity: 1; }
+  .vin-banner .vin-title { font-weight: 600; }
+  .vin-banner .vin-title code { font-family: Consolas, monospace; font-size: 13px; }
+  .vin-banner .vin-meta { font-size: 12.5px; opacity: .85; margin-top: 2px; }
+  .vin-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  button.vin-choice { padding: 6px 12px; border: 1px solid currentColor; background: #fff; color: inherit; border-radius: 999px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  button.vin-choice.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .vin-map-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+  .vin-map-form select { min-width: 280px; }
+  .vin-map-error { color: #b91c1c; font-size: 12.5px; }
+
+  /* Eye button (leftmost column): opens the full-row details popup */
+  th.view-col, td.view-col { width: 40px; padding-left: 10px; padding-right: 2px; }
+  button.row-view {
+    display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+    border: 1px solid var(--border); background: #fff; color: var(--muted); border-radius: 999px;
+    cursor: pointer; padding: 0; vertical-align: middle;
+  }
+  button.row-view svg { width: 16px; height: 16px; display: block; }
+  button.row-view:hover { border-color: var(--accent); color: var(--accent); background: var(--row-hover); }
+  .modal.wide { max-width: 820px; }
+  .modal.wide .field-grid { grid-template-columns: 1fr 1fr 1fr; }
+  .modal.wide .field.span-2 { grid-column: span 2; }
+  .modal.wide .field.span-3 { grid-column: 1 / -1; }
+  .detail-group {
+    grid-column: 1 / -1; font-size: 11.5px; font-weight: 700; color: var(--accent);
+    text-transform: uppercase; letter-spacing: .05em; margin-top: 6px; padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .detail-group:first-child { margin-top: 0; }
+  @media (max-width: 640px) { .modal.wide .field-grid { grid-template-columns: 1fr; } .modal.wide .field.span-2 { grid-column: 1 / -1; } }
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(17, 24, 39, .5);
@@ -285,12 +336,12 @@ const COLUMN_DEFS = [
   { key: 'qualDesc', label: 'Qualifier', def: true, cls: 'muted', render: (r) => dash(r.qualDesc || r.catDesc) },
   { key: 'totTime', label: 'Time (hrs)', def: true, cls: 'num', align: 'right', render: (r, h) => (
       <React.Fragment>
+        {h.isFresh(r) && r.changeType === 'added' && <span className="chg chg-new">NEW</span>}
+        {h.isFresh(r) && r.changeType === 'modified' && <span className="chg chg-mod">MODIFIED</span>}
         {h.isFresh(r) && r.changeType === 'modified' && r.prevTotTime != null && (
           <s className="prev-time">{Number(r.prevTotTime).toFixed(1)}</s>
         )}
         {r.totTime != null ? r.totTime.toFixed(1) : '—'}
-        {h.isFresh(r) && r.changeType === 'added' && <span className="chg chg-new">NEW</span>}
-        {h.isFresh(r) && r.changeType === 'modified' && <span className="chg chg-mod">MODIFIED</span>}
       </React.Fragment>
     ),
     title: (r, h) => (h.isFresh(r) ? `${r.changeType === 'added' ? 'Added' : 'Time modified'} ${formatWhen(r.changedAt)}` : undefined) },
@@ -309,6 +360,53 @@ const COLUMN_DEFS = [
   { key: 'changedAt', label: 'Changed On', cls: 'muted', render: (r, h) => (h.isFresh(r) ? formatWhen(r.changedAt) : '—') },
 ];
 const DEFAULT_COLS = COLUMN_DEFS.filter((c) => c.def).map((c) => c.key);
+
+const EyeIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+// Every stored field of a labor-time row, grouped, for the details popup
+// opened by the eye button. `span` widens a cell in the 3-column grid;
+// `render` overrides the plain value (same helper signature as COLUMN_DEFS).
+const DETAIL_GROUPS = [
+  { title: 'Labor operation', fields: [
+    { key: 'fullLaborOpCode', label: 'Full Op Code', cls: 'code' },
+    { key: 'laborDescCode', label: 'Labor Desc Code', cls: 'code' },
+    { key: 'baseLaborOp', label: 'Base Labor Op', cls: 'code' },
+    { key: 'operationDesc', label: 'Operation', span: 3 },
+    { key: 'combo', label: 'Combo' },
+    { key: 'complexCode', label: 'Complexity' },
+    { key: 'operType', label: 'Op Type' },
+  ] },
+  { title: 'Time', fields: [
+    { key: 'totTime', label: 'Time (hrs)', render: (r, h) => COLUMN_DEFS.find((c) => c.key === 'totTime').render(r, h) },
+    { key: 'prevTotTime', label: 'Previous Time (hrs)', render: (r, h) => (h.isFresh(r) && r.prevTotTime != null ? Number(r.prevTotTime).toFixed(1) : '—') },
+    { key: 'changedAt', label: 'Changed On', render: (r, h) => (h.isFresh(r) ? `${r.changeType === 'added' ? 'Added' : 'Time modified'} ${formatWhen(r.changedAt)}` : '—') },
+    { key: 'assessedTime', label: 'Assessed Time' },
+    { key: 'categoryCode', label: 'Category' },
+    { key: 'catDesc', label: 'Category Desc' },
+    { key: 'qualDesc', label: 'Qualifier', span: 3 },
+  ] },
+  { title: 'Vehicle', fields: [
+    { key: 'vehDesc', label: 'Vehicle', span: 2 },
+    { key: 'vehKey', label: 'Vehicle Key', cls: 'code' },
+    { key: 'modYear', label: 'Year' },
+    { key: 'gsa', label: 'Country', render: (r, h) => h.countryName[r.gsa] || dash(r.gsa) },
+    { key: 'source', label: 'Source' },
+    { key: 'brandCode', label: 'Brand' },
+  ] },
+  { title: 'Section & time study', fields: [
+    { key: 'secNo', label: 'Section No' },
+    { key: 'secDesc', label: 'Section', span: 2 },
+    { key: 'tsid', label: 'TSID', cls: 'code' },
+    { key: 'effectiveDate', label: 'Effective Date' },
+    { key: 'status', label: 'Status' },
+    { key: 'id', label: 'Row ID', cls: 'muted' },
+  ] },
+];
 const COLS_KEY = 'slts.columns';
 function loadCols() {
   try {
@@ -367,6 +465,14 @@ function App() {
   const [changeHighlightDays, setChangeHighlightDays] = useState(7);
   const changeCutoffMs = Date.now() - changeHighlightDays * 24 * 60 * 60 * 1000;
   const isFresh = (r) => !!r.changeType && !!r.changedAt && new Date(r.changedAt).getTime() >= changeCutoffMs;
+  // VIN (chassis number) search — a separate box; a search starts from a
+  // clean slate (every other filter is cleared) and, when the VIN resolves
+  // to exactly one loaded vehicle of that model year, selects it.
+  const [vin, setVin] = useState('');
+  const [vinResult, setVinResult] = useState(null); // /api/vin/decode response, or null
+  const [vinBusy, setVinBusy] = useState(false);
+  const [vinMapVehKey, setVinMapVehKey] = useState(''); // admin: vehicle chosen in the "map this code" form
+  const [vinMapError, setVinMapError] = useState('');
   const [search, setSearch] = useState('');
   const [exactMode, setExactMode] = useState(false); // true right after clicking Search / pressing Enter
   const [page, setPage] = useState(1);
@@ -429,7 +535,7 @@ function App() {
     fetch('/api/laborops?' + params)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); });
-  }, [vehKey, modYear, gsa, q, exactMode, page, refreshTick]);
+  }, [vehKey, modYear, gsa, change, q, exactMode, page, refreshTick]);
 
   const pages = Math.max(1, Math.ceil(data.total / data.limit));
   const visibleVehicles = vehicles.filter(v =>
@@ -459,9 +565,66 @@ function App() {
     setVehKey('');
     setSearch('');
     setExactMode(false);
+    clearVin();
   }
 
-  const hasFilters = modYear || gsa || change || vehKey || search.trim();
+  const hasFilters = modYear || gsa || change || vehKey || search.trim() || vin || vinResult;
+
+  function onVinChange(e) {
+    // Only letters and digits, upper-cased, capped at 17 — a VIN never has
+    // I, O or Q, but those are left for the server to explain rather than
+    // silently dropped while typing.
+    setVin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17));
+  }
+
+  function clearVin() {
+    setVin('');
+    setVinResult(null);
+    setVinMapVehKey('');
+    setVinMapError('');
+  }
+
+  async function findByVin() {
+    if (vin.length !== 17 || vinBusy) return;
+    // Clean slate: a VIN search replaces whatever was filtered before.
+    setModYear(''); setGsa(''); setVehKey(''); setSearch(''); setExactMode(false);
+    setShowNew(false); setShowModified(false); setPage(1);
+    setVinMapVehKey(''); setVinMapError('');
+    setVinBusy(true);
+    try {
+      const res = await fetch('/api/vin/decode?vin=' + encodeURIComponent(vin));
+      const d = await res.json();
+      setVinResult(d);
+      if (d.ok && d.best) setVehKey(d.best.vehKey);
+    } catch (err) {
+      setVinResult({ ok: false, error: String(err) });
+    } finally {
+      setVinBusy(false);
+    }
+  }
+
+  // Admin: record "this WMI + body code = that vehicle line" and search again.
+  async function saveVinMapping() {
+    const v = vehicles.find(x => x.vehKey === vinMapVehKey);
+    if (!v || !vinResult || !vinResult.ok) return;
+    setVinBusy(true); setVinMapError('');
+    try {
+      const res = await fetch('/api/vin/map', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wmi: vinResult.parsed.wmi, bodyCode: vinResult.parsed.bodyCode, gsa: v.gsa, vehCode: v.vehCode, note: 'added from VIN ' + vinResult.parsed.vin }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setVinMapError(d.error || 'Could not save'); return; }
+      setVinBusy(false);
+      await findByVin();
+    } catch (err) {
+      setVinMapError(String(err));
+    } finally {
+      setVinBusy(false);
+    }
+  }
+  // One entry per vehicle line + market (a mapping applies to every model year of the line).
+  const vehicleLines = vehicles.filter((v, i, a) => a.findIndex(x => x.gsa === v.gsa && x.vehCode === v.vehCode) === i);
 
   function exportCsv() {
     setExporting(true);
@@ -485,6 +648,15 @@ function App() {
 
   // Edit popup: shows the full row as read-only context, with only totTime
   // editable — the server-side route only ever writes that one field too.
+  // Details popup (eye button, every user): the whole row, read-only.
+  const [viewRow, setViewRow] = useState(null);
+  useEffect(() => {
+    if (!viewRow) return;
+    const onKey = (e) => { if (e.key === 'Escape') setViewRow(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [viewRow]);
+
   const [editRow, setEditRow] = useState(null); // the row object currently open in the popup, or null
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -642,6 +814,72 @@ function App() {
         </div>
       )}
 
+      <div className="controls vin-row">
+        <label htmlFor="vin-input">VIN</label>
+        <div className="vin-box">
+          <input
+            id="vin-input" type="text" maxLength={17} autoComplete="off" spellCheck={false}
+            placeholder="17-character chassis number"
+            value={vin}
+            onChange={onVinChange}
+            onKeyDown={e => { if (e.key === 'Enter') findByVin(); }}
+          />
+          <span className={'vin-count' + (vin.length === 17 ? ' full' : '')}>{vin.length}/17</span>
+        </div>
+        <button className="vin-find" onClick={findByVin} disabled={vin.length !== 17 || vinBusy}>
+          {vinBusy ? 'Searching…' : 'Find vehicle by VIN'}
+        </button>
+        <span className="vin-hint">Searching by VIN clears the other filters.</span>
+      </div>
+
+      {vinResult && (
+        <div className={'vin-banner ' + (vinResult.ok ? (vinResult.best ? 'ok' : 'warn') : 'err')}>
+          <button className="banner-close" onClick={clearVin} title="Dismiss">×</button>
+          {!vinResult.ok && <div className="vin-title">VIN {vin}: {vinResult.error}</div>}
+          {vinResult.ok && (
+            <React.Fragment>
+              <div className="vin-title">
+                {vinResult.best ? (
+                  <span>
+                    VIN {vinResult.parsed.vin} → <strong>{vinResult.best.modYear} · {vinResult.best.vehDesc}</strong> ({countryName[vinResult.best.gsa] || vinResult.best.gsa})
+                    {vinResult.best.modelDesc ? ' · ' + vinResult.best.modelDesc : ''}{vinResult.best.bodyStyleDesc ? ' · ' + vinResult.best.bodyStyleDesc : ''}
+                    {vinResult.best.note ? ' · ' + vinResult.best.note : ''}
+                  </span>
+                ) : vinResult.matches.length ? (
+                  <span>VIN {vinResult.parsed.vin}: no {vinResult.parsed.modelYear} data is loaded for this vehicle line — pick a year below.</span>
+                ) : (
+                  <span>VIN {vinResult.parsed.vin}: no vehicle is mapped to body code <code>{vinResult.parsed.bodyCode}</code> for {vinResult.parsed.manufacturer}.</span>
+                )}
+              </div>
+              <div className="vin-meta">
+                {vinResult.parsed.manufacturer} · built in {vinResult.parsed.region} · model year {vinResult.parsed.modelYear ?? '?'} · body code {vinResult.parsed.bodyCode} · engine code {vinResult.parsed.engineCode} · plant {vinResult.parsed.plantCode} · serial {vinResult.parsed.serial}
+                {vinResult.via ? ' · matched via ' + (vinResult.via === 'manual' ? 'admin mapping' : 'the extract') : ''}
+              </div>
+              {vinResult.matches.length > 0 && (
+                <div className="vin-choices">
+                  {vinResult.matches.map(m => (
+                    <button key={m.vehKey} className={'vin-choice' + (vehKey === m.vehKey ? ' on' : '')} onClick={() => setVehKey(m.vehKey)}>
+                      {m.modYear} · {m.vehDesc} ({countryName[m.gsa] || m.gsa}){m.exactYear ? '' : ' — other year'}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {vinResult.matches.length === 0 && canEdit && (
+                <div className="vin-map-form">
+                  <span>Map body code <strong>{vinResult.parsed.bodyCode}</strong> (WMI {vinResult.parsed.wmi}) to:</span>
+                  <select value={vinMapVehKey} onChange={e => setVinMapVehKey(e.target.value)}>
+                    <option value="">Choose vehicle line…</option>
+                    {vehicleLines.map(v => <option key={v.vehKey} value={v.vehKey}>{v.vehDesc} ({countryName[v.gsa] || v.gsa}) · code {v.vehCode}</option>)}
+                  </select>
+                  <button className="btn-primary" disabled={!vinMapVehKey || vinBusy} onClick={saveVinMapping}>Save mapping</button>
+                  {vinMapError && <span className="vin-map-error">{vinMapError}</span>}
+                </div>
+              )}
+            </React.Fragment>
+          )}
+        </div>
+      )}
+
       <div className="controls">
         <select className="narrow" value={modYear} onChange={e => setModYear(e.target.value)}>
           <option value="">All years</option>
@@ -719,6 +957,7 @@ function App() {
           <table>
             <thead>
               <tr>
+                <th className="view-col" aria-label="View"></th>
                 {shownDefs.map((c) => (
                   <th key={c.key} style={c.align ? { textAlign: c.align } : undefined}>{c.label}</th>
                 ))}
@@ -728,6 +967,9 @@ function App() {
             <tbody>
               {data.rows.map((r) => (
                 <tr key={r.id}>
+                  <td className="view-col">
+                    <button className="row-view" title="View all details" aria-label="View all details" onClick={() => setViewRow(r)}><EyeIcon /></button>
+                  </td>
                   {shownDefs.map((c) => (
                     <td key={c.key} className={c.cls} title={c.title ? c.title(r, { isFresh }) : undefined}>
                       {c.render ? c.render(r, { isFresh }) : dash(r[c.key])}
@@ -752,6 +994,38 @@ function App() {
           <button disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Next</button>
         </div>
       </div>
+
+      {viewRow && (
+        <div className="modal-overlay" onClick={() => setViewRow(null)}>
+          <div className="modal wide" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Labor operation details — <span style={{ fontFamily: 'Consolas, monospace', color: 'var(--accent)' }}>{viewRow.fullLaborOpCode}</span></h2>
+              <button className="modal-close" onClick={() => setViewRow(null)} title="Close">×</button>
+            </div>
+            <div className="modal-body">
+              <div className="field-grid">
+                {DETAIL_GROUPS.map((g) => (
+                  <React.Fragment key={g.title}>
+                    <div className="detail-group">{g.title}</div>
+                    {g.fields.map((f) => (
+                      <div key={f.key} className={'field' + (f.span ? ' span-' + f.span : '')}>
+                        <label>{f.label}</label>
+                        <div className={'field-value' + (f.cls ? ' ' + f.cls : '')}>
+                          {f.render ? f.render(viewRow, { isFresh, countryName }) : dash(viewRow[f.key])}
+                        </div>
+                      </div>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+            <div className="modal-actions">
+              {canEdit && <button className="btn-secondary" onClick={() => { setViewRow(null); openEdit(viewRow); }}>Edit time</button>}
+              <button className="btn-primary" onClick={() => setViewRow(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editRow && (
         <div className="modal-overlay" onClick={closeEdit}>
