@@ -30,6 +30,13 @@ function makeVinController(service) {
       } catch (err) { handleServiceError(res, err); }
     },
 
+    async learn(req, res) {
+      try {
+        const body = req.body || {};
+        res.json({ ok: true, ...(await service.learnFromClaims(body.csv, { commit: body.commit === true }, req.user)) });
+      } catch (err) { handleServiceError(res, err); }
+    },
+
     async remove(req, res) {
       try {
         res.json(await service.removeMap(parseInt(req.params.id, 10), req.user));

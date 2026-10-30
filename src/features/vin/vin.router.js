@@ -6,6 +6,7 @@
  *   GET    /api/vin/map                   the admin-entered mapping rows (+ which vehicles they hit)
  *   POST   /api/vin/map                   add one { wmi?, bodyCode, gsa?, vehCode, note? }
  *   POST   /api/vin/map/bulk              add many from CSV text { csv }
+ *   POST   /api/vin/map/learn             derive rows from claim records { csv, commit } (VIN + vehicle per line)
  *   DELETE /api/vin/map/:id
  *
  * Every handler is wrapped in asyncHandler — see its header comment.
@@ -26,6 +27,7 @@ function makeVinRouter(db, rbac, vehiclesService, auditService) {
   router.get('/api/vin/map', requireRole('ADMIN', 'SUPER_ADMIN'), asyncHandler(controller.list));
   router.post('/api/vin/map', requireRole('ADMIN', 'SUPER_ADMIN'), asyncHandler(controller.add));
   router.post('/api/vin/map/bulk', requireRole('ADMIN', 'SUPER_ADMIN'), asyncHandler(controller.bulk));
+  router.post('/api/vin/map/learn', requireRole('ADMIN', 'SUPER_ADMIN'), asyncHandler(controller.learn));
   router.delete('/api/vin/map/:id', requireRole('ADMIN', 'SUPER_ADMIN'), asyncHandler(controller.remove));
 
   return { router, service };

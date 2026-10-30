@@ -9,6 +9,7 @@
  */
 const { makeVinRepository } = require('./vin.repository');
 const { parseVin, matchVehicles } = require('./decode');
+const { parseClaimRecords, deriveMappings } = require('./learn');
 
 function httpError(message, status) {
   return Object.assign(new Error(message), { status });
@@ -123,7 +124,31 @@ function makeVinService(db, vehiclesService, auditService) {
     return result;
   }
 
-  return { decode, listMaps, addMap, removeMap, bulkImport };
+  /**
+   * Derive mapping rows from claim records (VIN + vehicle per line, see
+   * learn.js). Returns the preview; with commit=true the unambiguous rows
+   * are added too (rows that already exist are counted, not re-added).
+   */
+  async function learnFromClaims(csvText, { commit = false } = {}, user) {
+    const records = parseClaimRecords(csvText);
+    if (!records.length) throw httpError('Paste claim records first: one VIN and its vehicle per line', 400);
+    const vehicles = await vehiclesService.listForDropdown();
+    const result = deriveMappings(records, vehicles);
+    if (!commit) return result;
+    let added = 0; let existing = 0; const failed = [];
+    for (const r of result.rows) {
+      try {
+        await addMap({ wmi: r.wmi, bodyCode: r.bodyCode, gsa: r.gsa, vehCode: r.vehCode, note: `learned from ${r.count} claim(s), e.g. ${r.exampleVin}` }, user);
+        added++;
+      } catch (e) {
+        if (e.status === 409) existing++;
+        else failed.push({ bodyCode: r.bodyCode, wmi: r.wmi, error: e.message });
+      }
+    }
+    return { ...result, added, existing, failed };
+  }
+
+  return { decode, listMaps, addMap, removeMap, bulkImport, learnFromClaims };
 }
 
 module.exports = { makeVinService };

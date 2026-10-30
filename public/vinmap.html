@@ -60,6 +60,8 @@ function App() {
   const [msg, setMsg] = useState(null);
   const [form, setForm] = useState({ wmi: '', bodyCode: '', vehKey: '', note: '' });
   const [csv, setCsv] = useState('');
+  const [claims, setClaims] = useState('');
+  const [learned, setLearned] = useState(null); // preview from /api/vin/map/learn
 
   function loadAll() {
     fetch('/auth/me').then(r => r.json()).then(d => setMe(d.user));
@@ -119,6 +121,26 @@ function App() {
         list: d.skipped.map(s => `line ${s.line}: ${s.error} — ${s.text}`),
       });
       if (d.added) { setCsv(''); loadAll(); }
+    } finally { setBusy(false); }
+  }
+
+  async function learn(commit) {
+    setBusy(true); setMsg(null);
+    try {
+      const res = await fetch('/api/vin/map/learn', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ csv: claims, commit }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setMsg({ type: 'err', text: d.error || 'Could not read the records' }); return; }
+      setLearned(d);
+      if (commit) {
+        setMsg({
+          type: d.failed.length ? 'err' : 'ok',
+          text: `${d.added} mapping(s) added from ${d.total} claim record(s), ${d.existing} already existed, ${d.failed.length} failed.`,
+          list: d.failed.map(f => `${f.bodyCode}${f.wmi ? ' (' + f.wmi + ')' : ''}: ${f.error}`),
+        });
+        if (d.added) loadAll();
+      }
     } finally { setBusy(false); }
   }
 
@@ -210,6 +232,69 @@ function App() {
           <div style={{ marginTop: 8 }}>
             <button className="primary" disabled={busy || !csv.trim()} onClick={importCsv}>Import</button>
           </div>
+        </div>
+
+        <div className="card">
+          <h2>Learn from claim records</h2>
+          <p className="muted" style={{ fontSize: 13, margin: '0 0 8px' }}>
+            Paste any export that lists a <strong>VIN next to the vehicle</strong> — a claims report, a DMS extract, a warranty-portal download.
+            Comma, semicolon or tab separated; a header line is used to find the VIN and vehicle columns (<code>VIN</code>, <code>Chassis No</code>,
+            <code>Model</code>, <code>Vehicle</code>, <code>VehCode</code>…), other columns are ignored. The vehicle may be the 2-letter code,
+            the full description, or just the model name (<em>Mondeo</em>, <em>Explorer</em>). Each VIN gives WMI + body code; the same pair
+            across claims confirms the line. Preview first — only pairs where every claim agrees are added.
+          </p>
+          <textarea value={claims} onChange={e => { setClaims(e.target.value); setLearned(null); }}
+            placeholder={'Claim No;Chassis No;Model\n1001;LVSFMBFC9RSC24354;Mondeo\n1002;LJXCU3BB2STF28226;Territory'} />
+          <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className="primary" disabled={busy || !claims.trim()} onClick={() => learn(false)}>Preview</button>
+            {learned && learned.rows.length > 0 && learned.added === undefined && (
+              <button className="primary" disabled={busy} onClick={() => learn(true)}>Add {learned.rows.length} mapping(s)</button>
+            )}
+            {learned && <span className="muted" style={{ fontSize: 13 }}>{learned.total} record(s) read</span>}
+          </div>
+          {learned && (
+            <div style={{ marginTop: 12 }}>
+              {learned.rows.length === 0 && <div className="empty">No usable pairs found — see the lists below for why.</div>}
+              {learned.rows.length > 0 && (
+                <table>
+                  <thead><tr><th>WMI</th><th>Body code</th><th>→ Vehicle line</th><th>Country</th><th>Claims</th><th>Model years</th><th>Example VIN</th></tr></thead>
+                  <tbody>
+                    {learned.rows.map(r => (
+                      <tr key={r.wmi + r.bodyCode}>
+                        <td className="code">{r.wmi}</td><td className="code">{r.bodyCode}</td>
+                        <td>{r.vehDesc} <span className="muted">· code {r.vehCode}</span></td>
+                        <td>{r.gsa ? (COUNTRY[r.gsa] || r.gsa) : <span className="muted">any</span>}</td>
+                        <td>{r.count}</td><td className="muted">{r.modelYears.join(', ')}</td><td className="code">{r.exampleVin}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {learned.conflicts.length > 0 && (
+                <div className="msg err" style={{ marginTop: 10 }}>
+                  Not added — the claims disagree on these codes (fix the records or add the row by hand):
+                  <ul>{learned.conflicts.map(c => (
+                    <li key={c.wmi + c.bodyCode}>{c.wmi} {c.bodyCode} ({c.count} claims): {c.options.map(o => `${o.vehDesc} ×${o.count}`).join(' / ')}</li>
+                  ))}</ul>
+                </div>
+              )}
+              {learned.unresolved.length > 0 && (
+                <div className="msg err" style={{ marginTop: 10 }}>
+                  Vehicle text that matches no loaded vehicle line (import that line's extract first, or use its code):
+                  <ul>{learned.unresolved.map(u => (
+                    <li key={u.vehicle}>“{u.vehicle}” — {u.count} claim(s), e.g. {u.exampleVin}{u.ambiguous ? ` (could be ${u.ambiguous.join(' or ')})` : ''}</li>
+                  ))}</ul>
+                </div>
+              )}
+              {learned.invalid.length > 0 && (
+                <div className="msg err" style={{ marginTop: 10 }}>
+                  {learned.invalid.length} record(s) with an unusable VIN:
+                  <ul>{learned.invalid.slice(0, 20).map(i => <li key={i.line}>line {i.line}: {i.vin || '(blank)'} — {i.error}</li>)}</ul>
+                  {learned.invalid.length > 20 && <div className="muted">…and {learned.invalid.length - 20} more</div>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       </div>
